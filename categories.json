@@ -1,0 +1,512 @@
+{
+    "0": {
+      "problem": "rice leaf roller",
+      "cultural_biological": "Release Trichogramma wasps, avoid excessive nitrogenous fertilizers, and clear weeds around the field edges.",
+      "chemical_direct": "Apply Chlorantraniliprole, Flubendiamide, or Chlorpyrifos at early larval stages."
+    },
+    "1": {
+      "problem": "rice leaf caterpillar",
+      "cultural_biological": "Utilize frequency oscillation disease-killing lamps to capture adult moths, and encourage natural enemies like spiders and frogs.",
+      "chemical_direct": "Spray Bacillus thuringiensis (Bt) wettable powder or Indoxacarb during peak hatching."
+    },
+    "2": {
+      "problem": "paddy stem maggot",
+      "cultural_biological": "Drain fields periodically during peak egg-laying windows to suppress larval emergence.",
+      "chemical_direct": "Apply systemic granular insecticides such as Thiamethoxam or Fipronil to the soil."
+    },
+    "3": {
+      "problem": "asiatic rice borer",
+      "cultural_biological": "Burn or plow down stubble post-harvest to destroy overwintering larvae.",
+      "chemical_direct": "Spray Chlorantraniliprole or apply Cartap Hydrochloride granules in irrigation water."
+    },
+    "4": {
+      "problem": "yellow rice borer",
+      "cultural_biological": "Harvest crops close to the ground level and submerge stubble with water to kill pupae.",
+      "chemical_direct": "Use sex pheromone traps for mass trapping or apply targeted sprays of Emamectin Benzoate."
+    },
+    "5": {
+      "problem": "rice gall midge",
+      "cultural_biological": "Use gall midge-resistant cultivars and conserve platygasterid parasite wasps.",
+      "chemical_direct": "Broadcast Carbofuran or Fipronil granules at the early tillering stage."
+    },
+    "6": {
+      "problem": "Rice Stemfly",
+      "cultural_biological": "Adjust planting dates to avoid early-season fly peaks and manually clear alternate grass hosts.",
+      "chemical_direct": "Apply systemic foliar sprays like Dimethoate or Imidacloprid."
+    },
+    "7": {
+      "problem": "brown plant hopper",
+      "cultural_biological": "Practice alternate wetting and drying (AWD) water management and avoid dense planting.",
+      "chemical_direct": "Spray Pymetrozine, Dinotefuran, or Triflumezopyrim directed at the base of the plants."
+    },
+    "8": {
+      "problem": "white backed plant hopper",
+      "cultural_biological": "Maintain wide spacing between rows and encourage predatory mirid bugs.",
+      "chemical_direct": "Apply Buprofezin or Thiamethoxam when populations cross economic thresholds."
+    },
+    "9": {
+      "problem": "small brown plant hopper",
+      "cultural_biological": "Clean field bunds to destroy overwintering environments; monitor for rice stripe virus transmission.",
+      "chemical_direct": "Apply Imidacloprid or Clothianidin during the early vegetative phase."
+    },
+    "10": {
+      "problem": "rice water weevil",
+      "cultural_biological": "Delayed flooding of fields where possible and clear aquatic weeds.",
+      "chemical_direct": "Apply seed treatments with Cyantraniliprole or apply Lambda-Cyhalothrin to foliage."
+    },
+    "11": {
+      "problem": "rice leafhopper",
+      "cultural_biological": "Use yellow sticky traps and prune overlapping dense canopies to lower humidity.",
+      "chemical_direct": "Apply Acetamiprid or Buprofezin sprays early in the morning."
+    },
+    "12": {
+      "problem": "grain spreader thrips",
+      "cultural_biological": "Maintain a continuous thin layer of water in the field to drown thrips nymphs.",
+      "chemical_direct": "Spray Spinetoram or Azadirachtin (Neem-based formulation) upon first detection."
+    },
+    "13": {
+      "problem": "rice shell disease",
+      "cultural_biological": "Manually collect visible egg masses and adults; optimize deep plowing during field prep.",
+      "chemical_direct": "Apply contact insecticides like Cypermethrin or Abamectin if outbreaks occur."
+    },
+    "14": {
+      "problem": "grub",
+      "cultural_biological": "Deep plow the soil during autumn or winter to expose grubs to birds and cold weather.",
+      "chemical_direct": "Apply Metarhizium anisopliae bio-insecticide or mix Chlorpyrifos granules into the soil."
+    },
+    "15": {
+      "problem": "mole cricket",
+      "cultural_biological": "Flood fields to force crickets to the surface for manual collection or bird predation.",
+      "chemical_direct": "Deploy toxic baits mixed with Trichlorfon or apply Imidacloprid into tunnels."
+    },
+    "16": {
+      "problem": "wireworm",
+      "cultural_biological": "Implement intensive crop rotation with non-host plants and optimize summer fallow tilling.",
+      "chemical_direct": "Use Bifenthrin or Clothianidin as a seed coat or pre-planting soil treatment."
+    },
+    "17": {
+      "problem": "white margined moth",
+      "cultural_biological": "Deploy light traps to catch adult moths and manually crush egg clusters.",
+      "chemical_direct": "Spray Lambda-Cyhalothrin or Chlorantraniliprole during larval outbreaks."
+    },
+    "18": {
+      "problem": "black cutworm",
+      "cultural_biological": "Remove weeds 10-14 days before planting to starve young larvae.",
+      "chemical_direct": "Apply synthetic pyrethroid sprays (e.g., Deltamethrin) or bran baits late in the evening."
+    },
+    "19": {
+      "problem": "large cutworm",
+      "cultural_biological": "Utilize physical barriers around high-value seedlings and implement deep mechanical tilling.",
+      "chemical_direct": "Apply targeted applications of Indoxacarb or Chlorfenapyr to the base of plants."
+    },
+    "20": {
+      "problem": "yellow cutworm",
+      "cultural_biological": "Keep field boundaries completely clean of host weeds; utilize structural row covers.",
+      "chemical_direct": "Deploy molasses-pesticide baits or spray Emamectin Benzoate around affected clusters."
+    },
+    "21": {
+      "problem": "red spider",
+      "cultural_biological": "Introduce predatory mites (Phytoseiidae) and maintain overhead sprinkler irrigation to wash them away.",
+      "chemical_direct": "Spray specific acaricides like Abamectin, Spirodiclofen, or Hexythiazox."
+    },
+    "22": {
+      "problem": "corn borer",
+      "cultural_biological": "Plant resistant hybrids and release Trichogramma ostriniae wasps at initial egg laying.",
+      "chemical_direct": "Apply Bacillus thuringiensis (Bt) granules or spray Chlorantraniliprole into the whorls."
+    },
+    "23": {
+      "problem": "army worm",
+      "cultural_biological": "Dig deep defensive trenches around fields to stop migrating crawls; protect bird populations.",
+      "chemical_direct": "Spray Methomyl, Flubendiamide, or Spinosad evenly across the crop canopy."
+    },
+    "24": {
+      "problem": "aphids",
+      "cultural_biological": "Conserve ladybug beetles and lacewings; blast small infestations with high-pressure water.",
+      "chemical_direct": "Apply Imidacloprid, Thiamethoxam, or Flonicamid systemic sprays."
+    },
+    "25": {
+      "problem": "Potosiabre vitarsis",
+      "cultural_biological": "Hang sweet-and-sour liquid bait traps (sugar, vinegar, wine mix) to capture adult beetles.",
+      "chemical_direct": "Apply targeted contact treatments like Carbaryl or Cypermethrin to aggregate sites."
+    },
+    "26": {
+      "problem": "peach borer",
+      "cultural_biological": "Apply mating disruption pheromone dispensers across orchards early in the season.",
+      "chemical_direct": "Paint or spray the lower trunk sections with Chlorpyrifos or Permethrin."
+    },
+    "27": {
+      "problem": "english grain aphid",
+      "cultural_biological": "Incorporate intercropping methods and protect natural parasitoid wasps (Aphidius spp.).",
+      "chemical_direct": "Spray Pirimicarb or Dimethoate if pest populations cross economic thresholds."
+    },
+    "28": {
+      "problem": "green bug",
+      "cultural_biological": "Grow bug-resistant grain varieties and balance fertilizer application rates.",
+      "chemical_direct": "Apply systemic options like Acetamiprid or Pymetrozine."
+    },
+    "29": {
+      "problem": "bird cherry-oataphid",
+      "cultural_biological": "Destroy winter host trees near production fields; encourage lady beetle propagation.",
+      "chemical_direct": "Apply seed treatments with Imidacloprid or foliar sprays of Thiamethoxam."
+    },
+    "30": {
+      "problem": "wheat blossom midge",
+      "cultural_biological": "Utilize resistant wheat varieties and implement crop rotations out of grass species.",
+      "chemical_direct": "Spray Lambda-Cyhalothrin exactly at heading when midges emerge at dusk."
+    },
+    "31": {
+      "problem": "penthaleus major",
+      "cultural_biological": "Rotate fields with non-susceptible crops like lentils; optimize summer fallowing.",
+      "chemical_direct": "Apply Bifenthrin or Omethoate during early autumn or winter when mites hatch."
+    },
+    "32": {
+      "problem": "longlegged spider mite",
+      "cultural_biological": "Increase dust-control practices along field borders and provide adequate watering.",
+      "chemical_direct": "Apply targeted miticides such as Bifenazate or Pyridaben."
+    },
+    "33": {
+      "problem": "wheat phloeothrips",
+      "cultural_biological": "Burn or plow deep into crop residues immediately after harvest to disrupt life cycles.",
+      "chemical_direct": "Apply systemic foliar insecticides like Malathion or Imidacloprid at early boot stage."
+    },
+    "34": {
+      "problem": "wheat sawfly",
+      "cultural_biological": "Implement deep autumn plowing to bury pupae and rotate out of small grains.",
+      "chemical_direct": "Apply contact pyrethroids such as Alpha-Cypermethrin prior to larval boring."
+    },
+    "35": {
+      "problem": "cerodonta denticornis",
+      "cultural_biological": "Remove wild host grasses around wheat fields and cut forage crops early.",
+      "chemical_direct": "Spray Dimethoate or other systemic organophosphates to target mining larvae."
+    },
+    "36": {
+      "problem": "beet fly",
+      "cultural_biological": "Use anti-insect nets over seedbeds and apply crop rotation systems.",
+      "chemical_direct": "Apply Deltamethrin or Acetamiprid upon finding leaf-mining tunnels."
+    },
+    "37": {
+      "problem": "flea beetle",
+      "cultural_biological": "Incorporate trap crops like radish or mustard; use row covers on young crops.",
+      "chemical_direct": "Dust or spray with Carbaryl, Bifenthrin, or Spinosad."
+    },
+    "38": {
+      "problem": "cabbage army worm",
+      "cultural_biological": "Manually collect and destroy large egg clusters; apply Bacillus thuringiensis strain kurstaki.",
+      "chemical_direct": "Spray Chlorantraniliprole, Emamectin Benzoate, or Indoxacarb."
+    },
+    "39": {
+      "problem": "beet army worm",
+      "cultural_biological": "Remove pigweed and alternate host weeds; release green lacewings.",
+      "chemical_direct": "Apply Spinetoram, Chlorfenapyr, or Lufenuron to prevent chitin synthesis."
+    },
+    "40": {
+      "problem": "Beet spot flies",
+      "cultural_biological": "Utilize yellow sticky boards for population monitoring and adult removal.",
+      "chemical_direct": "Apply targeted systemic sprays of Cyromazine or Imidacloprid."
+    },
+    "41": {
+      "problem": "meadow moth",
+      "cultural_biological": "Deep till soil in autumn to crush overwintering cocoons; mow weed boundaries.",
+      "chemical_direct": "Apply contact pyrethroids like Lambda-Cyhalothrin during early caterpillar stages."
+    },
+    "42": {
+      "problem": "beet weevil",
+      "cultural_biological": "Dig trapping ditches around new beet fields adjacent to old beet locations.",
+      "chemical_direct": "Apply Phosmet or Alpha-Cypermethrin early in the spring to target adult beetles."
+    },
+    "43": {
+      "problem": "sericaorient alismots chulsky",
+      "cultural_biological": "Use black light traps to collect adult beetles at night during summer months.",
+      "chemical_direct": "Drench soil with Imidacloprid or apply Bifenthrin granules to target root-feeding larvae."
+    },
+    "44": {
+      "problem": "alfalfa weevil",
+      "cultural_biological": "Harvest the first alfalfa crop early to eliminate eggs and young larvae mechanically.",
+      "chemical_direct": "Spray Indoxacarb, Flubendiamide, or Lambda-Cyhalothrin if thresholds are exceeded."
+    },
+    "45": {
+      "problem": "flax budworm",
+      "cultural_biological": "Optimize early planting schedules to ensure flowering occurs before peak pest populations emerge.",
+      "chemical_direct": "Apply Methomyl or Spinosad when buds show initial feeding damage."
+    },
+    "46": {
+      "problem": "alfalfa plant bug",
+      "cultural_biological": "Cut alfalfa fields cleanly to remove egg-laying sites in the stems.",
+      "chemical_direct": "Apply targeted foliar sprays of Dimethoate or Cypermethrin."
+    },
+    "47": {
+      "problem": "tarnished plant bug",
+      "cultural_biological": "Control broadleaf weeds in and around fields; maintain clear buffers.",
+      "chemical_direct": "Apply Flonicamid, Sulfoxaflor, or Bifenthrin during early nymph phases."
+    },
+    "48": {
+      "problem": "Locustoidea",
+      "cultural_biological": "Protect natural bird habitats; implement Nosema locustae biological bait treatments.",
+      "chemical_direct": "Apply broad-scale applications of Malathion, Carbaryl, or Diflubenzuron."
+    },
+    "49": {
+      "problem": "lytta polita",
+      "cultural_biological": "Hand-pick beetles carefully using protective gloves (due to cantharidin blisters).",
+      "chemical_direct": "Spray Methomyl or Carbaryl along field edges where swarms concentrate."
+    },
+    "50": {
+      "problem": "legume blister beetle",
+      "cultural_biological": "Maintain weed-free conservation strips and timing alfalfa cuttings to minimize blooming.",
+      "chemical_direct": "Apply targeted foliar treatments with Cyfluthrin or Permethrin."
+    },
+    "51": {
+      "problem": "blister beetle",
+      "cultural_biological": "Encourage natural landscape diversity; monitor hay fields closely before cutting.",
+      "chemical_direct": "Apply Spot treatments of Pyrethrins or Carbaryl to heavy clusters."
+    },
+    "52": {
+      "problem": "therioaphis maculata Buckton",
+      "cultural_biological": "Introduce spotted alfalfa aphid-resistant cultivars; preserve predatory lady beetles.",
+      "chemical_direct": "Apply Flonicamid or Chlorpyrifos if honeydew accumulation becomes severe."
+    },
+    "53": {
+      "problem": "odontothrips loti",
+      "cultural_biological": "Implement standard overhead irrigation to disturb breeding cycles on legume crops.",
+      "chemical_direct": "Spray Spinetoram or Acetamiprid combined with a surfactant."
+    },
+    "54": {
+      "problem": "Thrips",
+      "cultural_biological": "Deploy bright blue or yellow sticky traps; utilize silver reflective mulches.",
+      "chemical_direct": "Apply Spinosad, Abamectin, or Azadirachtin alternated to prevent resistance."
+    },
+    "55": {
+      "problem": "alfalfa seed chalcid",
+      "cultural_biological": "Destroy volunteer alfalfa plants and recycle or burn infested seed screenings.",
+      "chemical_direct": "No effective chemical rescue exists for internal seed larvae; apply contact pyrethroids to adults pre-bloom."
+    },
+    "56": {
+      "problem": "Pieris canidia",
+      "cultural_biological": "Manually clean off visible green caterpillars; use fine insect netting exclusions.",
+      "chemical_direct": "Apply Bacillus thuringiensis (Bt) or Spinosad sprays regularly."
+    },
+    "57": {
+      "problem": "Apolygus lucorum",
+      "cultural_biological": "Plant green bean trap crops around main plots; clear host weeds like wormwood.",
+      "chemical_direct": "Spray Imidacloprid, Sulfoxaflor, or Beta-Cyfluthrin during early nymph stages."
+    },
+    "58": {
+      "problem": "Limacodidae",
+      "cultural_biological": "Prune out leaves with cocoon formations during winter; protect insectivorous birds.",
+      "chemical_direct": "Apply Bacillus thuringiensis (Bt) or Chlorantraniliprole to young larvae safely."
+    },
+    "59": {
+      "problem": "Viteus vitifoliae",
+      "cultural_biological": "Graft grapevines exclusively onto resistant rootstocks (e.g., Couderc or Richter varieties).",
+      "chemical_direct": "Apply Spirotetramat or Imidacloprid soil drenches to suppress root infestations."
+    },
+    "60": {
+      "problem": "Colomerus vitis",
+      "cultural_biological": "Prune and destroy distorted blistered leaves early in spring growth.",
+      "chemical_direct": "Apply wettable sulfur sprays at bud break or use Abamectin post-bloom."
+    },
+    "61": {
+      "problem": "Brevipoalpus lewisi McGregor",
+      "cultural_biological": "Preserve native phytoseiid predatory mites by avoiding broad-spectrum sprays.",
+      "chemical_direct": "Apply Spirodiclofen, Fenpyroximate, or sulfur formulations."
+    },
+    "62": {
+      "problem": "oides decempunctata",
+      "cultural_biological": "Manually collect adult beetles and larvae from grape leaves in small vineyards.",
+      "chemical_direct": "Spray Beta-Cypermethrin or Phosmet during peak adult emergence."
+    },
+    "63": {
+      "problem": "Polyphagotars onemus latus",
+      "cultural_biological": "Maintain high humidity but avoid water stress; remove infected host plants.",
+      "chemical_direct": "Apply Abamectin, Fenpyroximate, or Spiromesifen to leaf undersides."
+    },
+    "64": {
+      "problem": "Pseudococcus comstocki Kuwana",
+      "cultural_biological": "Release predatory ladybeetles (Cryptolaemus montrouzieri) and clear loose bark.",
+      "chemical_direct": "Apply Spirotetramat or Buprofezin during the crawler emergence phase."
+    },
+    "65": {
+      "problem": "parathrene regalis",
+      "cultural_biological": "Inject entomopathogenic nematodes (Steinernema spp.) directly into borer entry holes.",
+      "chemical_direct": "Apply Chlorpyrifos or Permethrin to trunks during adult flight windows."
+    },
+    "66": {
+      "problem": "Ampelophaga",
+      "cultural_biological": "Hand-pick large hornworm caterpillars from vines; protect pupae in soil via tilling.",
+      "chemical_direct": "Spray Spinosad or Carbaryl if populations threaten major defoliation."
+    },
+    "67": {
+      "problem": "Lycorma delicatula",
+      "cultural_biological": "Scrape off and destroy gray mud-like egg masses; remove preferred Tree of Heaven hosts.",
+      "chemical_direct": "Apply systemic Dinotefuran bark sprays or contact Bifenthrin applications."
+    },
+    "68": {
+      "problem": "Xylotrechus",
+      "cultural_biological": "Promptly remove and burn dead, dying, or infested structural wood and vine trunks.",
+      "chemical_direct": "Apply protective trunk sprays of Bifenthrin or Cypermethrin before egg hatching."
+    },
+    "69": {
+      "problem": "Cicadella viridis",
+      "cultural_biological": "Mow weeds and grass ditch banks near main crops to remove egg-laying choices.",
+      "chemical_direct": "Apply Acetamiprid, Thiamethoxam, or Clothianidin sprays."
+    },
+    "70": {
+      "problem": "Miridae",
+      "cultural_biological": "Weed continuously along borders; deploy white sticky tracking cards.",
+      "chemical_direct": "Spray Flonicamid, Sulfoxaflor, or Oxamyl strictly according to instructions."
+    },
+    "71": {
+      "problem": "Trialeurodes vaporariorum",
+      "cultural_biological": "Introduce Encarsia formosa parasitic wasps; use yellow sticky traps.",
+      "chemical_direct": "Apply Spiromesifen, Buprofezin, or Potassium Salts of Fatty Acids (Insecticidal Soap)."
+    },
+    "72": {
+      "problem": "Erythroneura apicalis",
+      "cultural_biological": "Remove fallen leaf litter during winter cleanups to remove overwintering shelter.",
+      "chemical_direct": "Apply Acetamiprid or Dinotefuran early in the nymph cycle."
+    },
+    "73": {
+      "problem": "Papilio xuthus",
+      "cultural_biological": "Hand-pick large bird-dropping mimetic caterpillars from citrus foliage.",
+      "chemical_direct": "Apply Bacillus thuringiensis (Bt) or Spinosad safely without hitting pollinators."
+    },
+    "74": {
+      "problem": "Panonchus citri McGregor",
+      "cultural_biological": "Conserve predatory mites and ladybugs; maintain proper tree irrigation.",
+      "chemical_direct": "Spray Abamectin, Spirodiclofen, or clofentezine miticides."
+    },
+    "75": {
+      "problem": "Phyllocoptes oleiverus ashmead",
+      "cultural_biological": "Prune trees to open up canopies; monitor rust configurations on fruit regularly.",
+      "chemical_direct": "Apply agricultural sulfur, Fenbutatin Oxide, or Abamectin treatments."
+    },
+    "76": {
+      "problem": "Icerya purchasi Maskell",
+      "cultural_biological": "Introduce and protect Vedalia predatory beetles (Rodolia cardinalis) and Cryptochaetum flies.",
+      "chemical_direct": "Apply horticultural oils or use targeted systemic Pyriproxyfen."
+    },
+    "77": {
+      "problem": "Unaspis yanonensis",
+      "cultural_biological": "Prune out highly infested branches to increase light penetration and air movement.",
+      "chemical_direct": "Apply Mineral oil sprays during winter, or Buprofezin during crawler peaks."
+    },
+    "78": {
+      "problem": "Ceroplastes rubens",
+      "cultural_biological": "Prune affected structural twigs; spray with high-pressure water wash to dislodge scale.",
+      "chemical_direct": "Apply Imidacloprid as a soil drench or use targeted Pyriproxyfen + oil sprays."
+    },
+    "79": {
+      "problem": "Chrysomphalus aonidum",
+      "cultural_biological": "Encourage Aphytis holoxanthus parasitic wasps; remove heavy target leaves.",
+      "chemical_direct": "Spray with Chlorpyrifos or Spirotetramat combined with a crop oil adjuvant."
+    },
+    "80": {
+      "problem": "Parlatoria zizyphus Lucus",
+      "cultural_biological": "Enforce strict quarantine on clean nursery stock; scrape scale crusts manually from trunks.",
+      "chemical_direct": "Apply broad systemic drenches of Dinotefuran or seasonal mineral oils."
+    },
+    "81": {
+      "problem": "Nipaecoccus vastalor",
+      "cultural_biological": "Control attending honeydew ants; use botanical oil washes directly on colonies.",
+      "chemical_direct": "Apply Profenofos, Buprofezin, or Acetamiprid into interior cluster spaces."
+    },
+    "82": {
+      "problem": "Aleurocanthus spiniferus",
+      "cultural_biological": "Conserve Encarsia smithi parasitoid wasps; prune lower inner watersprouts.",
+      "chemical_direct": "Apply Azadirachtin, Spirotetramat, or Dinotefuran systemic options."
+    },
+    "83": {
+      "problem": "Tetradacus c Bactrocera minax",
+      "cultural_biological": "Bag individual high-value fruits early; cleanly collect and deeply bury fallen fruit.",
+      "chemical_direct": "Deploy protein hydrolysate baits mixed with Spinosad or Malathion on trunks."
+    },
+    "84": {
+      "problem": "Dacus dorsalis(Hendel)",
+      "cultural_biological": "Implement the Male Annihilation Technique (MAT) using Methyl Eugenol pheromone traps.",
+      "chemical_direct": "Spray GF-120 SpinTor Bait or apply targeted Dimethoate cover applications."
+    },
+    "85": {
+      "problem": "Bactrocera tsuneonis",
+      "cultural_biological": "Collect fallen citrus fruit every 3 days and destroy them via boiling or deep burial.",
+      "chemical_direct": "Utilize bait sprays containing Spinosad applied to non-crop border vegetation."
+    },
+    "86": {
+      "problem": "Prodenia litura",
+      "cultural_biological": "Hand-pick clusters; deploy light traps and Spodoptera litura sex pheromone lures.",
+      "chemical_direct": "Apply Chlorantraniliprole, Indoxacarb, or Emamectin Benzoate."
+    },
+    "87": {
+      "problem": "Adristyrannus",
+      "cultural_biological": "Orchard sanitation; immediately drop and eliminate infested fruit vectors.",
+      "chemical_direct": "Apply targeted contact pyrethroids or organophosphates during egg-laying flights."
+    },
+    "88": {
+      "problem": "Phyllocnistis citrella Stainton",
+      "cultural_biological": "Avoid late-season nitrogen inputs to limit tender flush growth; protect Ageniaspis citricola wasps.",
+      "chemical_direct": "Spray Spinetoram, Abamectin, or Imidacloprid strictly onto new leaf flushes."
+    },
+    "89": {
+      "problem": "Toxoptera citricidus",
+      "cultural_biological": "Conserve predatory lacewings and Lysiphlebus testaceipes parasitic wasps.",
+      "chemical_direct": "Apply systemic Imidacloprid or contact applications of Thiamethoxam."
+    },
+    "90": {
+      "problem": "Toxoptera aurantii",
+      "cultural_biological": "Prune out dense water sprouts to reduce colonial feeding sites.",
+      "chemical_direct": "Apply Flonicamid, Acetamiprid, or Potassium Salts of Fatty Acids."
+    },
+    "91": {
+      "problem": "Aphis citricola Vander Goot",
+      "cultural_biological": "Maintain balanced fertilization; remove alternate host spiraea bushes nearby.",
+      "chemical_direct": "Spray Pymetrozine or Dinotefuran upon early colony grouping."
+    },
+    "92": {
+      "problem": "Scirtothrips dorsalis Hood",
+      "cultural_biological": "Intercrop with non-host crops and eliminate field weeds; use blue sticky traps.",
+      "chemical_direct": "Apply Spinetoram, Tolfenpyrad, or Abamectin in rotational cycles."
+    },
+    "93": {
+      "problem": "Dasineura sp",
+      "cultural_biological": "Turn or cultivate topsoil below plants during winter to expose midge pupae.",
+      "chemical_direct": "Apply contact pyrethroids during early budding before adults deposit eggs."
+    },
+    "94": {
+      "problem": "Lawana imitata Melichar",
+      "cultural_biological": "Prune and burn structural twigs containing embedded overwintering egg insertions.",
+      "chemical_direct": "Apply Acetamiprid or Thiamethoxam combined with an oil-based adjuvant."
+    },
+    "95": {
+      "problem": "Salurnis marginella Guerr",
+      "cultural_biological": "Remove wild host brush from orchard boundaries and maintain airy branch architectures.",
+      "chemical_direct": "Spray with Buprofezin or Bifenthrin during early nymph concentrations."
+    },
+    "96": {
+      "problem": "Deporaus marginatus Pascoe",
+      "cultural_biological": "Collect and destroy clipped leaves containing eggs from the ground daily.",
+      "chemical_direct": "Apply Lambda-Cyhalothrin or Cypermethrin to foliage during new flush stages."
+    },
+    "97": {
+      "problem": "Chlumetia transversa",
+      "cultural_biological": "Prune out and burn mango shoots showing early wilting or boring holes.",
+      "chemical_direct": "Inject or spray shoots with Chlorantraniliprole or Profenofos before boring occurs."
+    },
+    "98": {
+      "problem": "Mango flat beak leafhopper",
+      "cultural_biological": "Prune crowded inner orchard branches to allow sunlight and lower humidity.",
+      "chemical_direct": "Spray Imidacloprid, Thiamethoxam, or Buprofezin onto tree trunks and blossoms."
+    },
+    "99": {
+      "problem": "Rhytidodera bowrinii white",
+      "cultural_biological": "Hook out larvae from boring tunnels manually using wire or plug holes with mud.",
+      "chemical_direct": "Inject Dichlorvos or Chlorpyrifos solutions directly into active tunnel openings and seal them."
+    },
+    "100": {
+      "problem": "Sternochetus frigidus",
+      "cultural_biological": "Collect and destroy all fallen and infested mango fruits; clean orchard floors thoroughly.",
+      "chemical_direct": "Apply protective sprays of Deltamethrin or Alpha-Cypermethrin during fruit-set phases."
+    },
+    "101": {
+      "problem": "Cicadellidae",
+      "cultural_biological": "Deploy yellow sticky cards around crops and eliminate surrounding alternate weed hosts.",
+      "chemical_direct": "Apply systemic foliar insecticides like Dinotefuran, Acetamiprid, or Flonicamid."
+    }
+  }

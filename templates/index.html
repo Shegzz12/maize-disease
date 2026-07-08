@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crop disease Intelligence | AI Assessment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+            --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+            --color-brand-50: #f0fdf4;
+            --color-brand-100: #dcfce7;
+            --color-brand-500: #22c55e;
+            --color-brand-600: #16a34a;
+            --color-brand-700: #15803d;
+            --color-brand-800: #166534;
+            --color-earth-50: #faf8f5;
+            --color-earth-100: #f3ede4;
+            --color-earth-800: #3d3428;
+        }
+        body { font-family: var(--font-sans); }
+        .font-display { font-family: var(--font-serif); }
+        .grain {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+        }
+        .upload-ring:focus-within { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+        @keyframes spin-slow { to { transform: rotate(360deg); } }
+        .spinner { animation: spin-slow 0.9s linear infinite; }
+        .fault-card { transition: box-shadow 0.2s ease, border-color 0.2s ease; }
+        .fault-card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    </style>
+</head>
+<body class="min-h-screen bg-earth-50 text-slate-800 grain">
+
+    <!-- Top navigation -->
+    <nav class="border-b border-earth-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-3">
+                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white shadow-sm">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-sm font-semibold text-earth-800">Crop disease Intelligence</div>
+                    <div class="text-xs text-slate-500">AI-powered disease diagnosis</div>
+                </div>
+            </div>
+            <div id="serverStatus" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+                <span class="h-2 w-2 rounded-full bg-slate-300" id="statusDot"></span>
+                <span id="statusText">Checking server…</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <header class="border-b border-earth-100 bg-gradient-to-b from-white to-earth-50">
+        <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+            <div class="max-w-2xl">
+                <p class="text-xs font-semibold uppercase tracking-widest text-brand-600">Agricultural diagnostics</p>
+                <h1 class="font-display mt-2 text-4xl leading-tight text-earth-800 sm:text-5xl">
+                    Identify crop diseases.<br>
+                    <span class="italic text-brand-700">Get actionable solutions.</span>
+                </h1>
+                <p class="mt-4 text-base leading-relaxed text-slate-600">
+                    Upload a photo of affected crops. Our classification model detects likely pests and diseases,
+                    then maps each finding to cultural, biological, and chemical control recommendations.
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <div class="grid gap-8 lg:grid-cols-5">
+
+            <!-- Upload panel -->
+            <section class="lg:col-span-2">
+                <div class="sticky top-20 rounded-2xl border border-earth-100 bg-white shadow-sm">
+                    <div class="border-b border-earth-100 px-6 py-4">
+                        <h2 class="text-base font-semibold text-earth-800">Upload image</h2>
+                        <p class="mt-0.5 text-sm text-slate-500">PNG, JPG, JPEG, or WEBP</p>
+                    </div>
+
+                    <div class="p-6">
+                        <form id="uploadForm" class="space-y-5">
+                            <div id="dropZone" class="upload-ring group relative cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-earth-50/80 p-8 text-center transition hover:border-brand-500 hover:bg-brand-50/40">
+                                <input type="file" id="fileInput" name="file" accept="image/png,image/jpeg,image/jpg,image/webp" class="hidden">
+
+                                <div id="uploadPlaceholder" class="flex flex-col items-center gap-4">
+                                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition group-hover:ring-brand-200">
+                                        <svg class="h-7 w-7 text-slate-400 group-hover:text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-slate-800">Drag & drop your image here</p>
+                                        <p class="mt-1 text-xs text-slate-500">or click anywhere to browse files</p>
+                                    </div>
+                                </div>
+
+                                <div id="previewWrap" class="hidden">
+                                    <img id="imagePreview" class="mx-auto max-h-72 w-full rounded-xl border border-slate-200 bg-white object-contain shadow-sm" alt="Preview">
+                                    <p id="fileName" class="mt-3 truncate text-xs text-slate-500"></p>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-3 sm:flex-row">
+                                <button type="submit" id="analyzeBtn" disabled
+                                    class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                                    </svg>
+                                    Analyze image
+                                </button>
+                                <button type="button" id="resetBtn"
+                                    class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                                    Reset
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-6 rounded-xl bg-earth-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tips for best results</p>
+                            <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
+                                <li class="flex gap-2"><span class="text-brand-600">•</span> Use clear, well-lit close-up photos</li>
+                                <li class="flex gap-2"><span class="text-brand-600">•</span> Focus on visible pest damage or insects</li>
+                                <li class="flex gap-2"><span class="text-brand-600">•</span> Avoid heavy blur or extreme shadows</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results panel -->
+            <section class="lg:col-span-3 space-y-6">
+
+                <!-- Empty state -->
+                <div id="emptyState" class="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-8 py-16 text-center">
+                    <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-earth-100">
+                        <svg class="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+                        </svg>
+                    </div>
+                    <h3 class="mt-5 text-lg font-semibold text-earth-800">No assessment yet</h3>
+                    <p class="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+                        Upload a crop image on the left and click <strong class="font-medium text-slate-700">Analyze image</strong> to see detected faults and recommended treatments.
+                    </p>
+                </div>
+
+                <!-- Loading -->
+                <div id="loading" class="hidden rounded-2xl border border-earth-100 bg-white p-8 shadow-sm">
+                    <div class="flex items-center gap-4">
+                        <div class="spinner h-10 w-10 rounded-full border-[3px] border-brand-100 border-t-brand-600"></div>
+                        <div>
+                            <p class="font-semibold text-earth-800">Analyzing your image…</p>
+                            <p class="mt-0.5 text-sm text-slate-500">Running model inference and mapping to treatment database</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full w-1/3 animate-pulse rounded-full bg-brand-500"></div>
+                    </div>
+                </div>
+
+                <!-- Error -->
+                <div id="errorBox" class="hidden rounded-2xl border border-rose-200 bg-rose-50 p-6">
+                    <div class="flex gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-rose-900">Assessment failed</p>
+                            <p class="mt-1 text-sm text-rose-700" id="errorMsg"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div id="resultSection" class="hidden space-y-6">
+
+                    <!-- Primary finding banner -->
+                    <div class="overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white shadow-sm">
+                        <div class="border-b border-brand-100/80 px-6 py-3">
+                            <span class="text-xs font-semibold uppercase tracking-widest text-brand-700">Primary diagnosis</span>
+                        </div>
+                        <div class="px-6 py-5">
+                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <h2 class="text-2xl font-semibold capitalize text-earth-800" id="resProblem">—</h2>
+                                    <p class="mt-1 text-sm text-slate-600">
+                                        Class <span class="font-medium" id="resId">—</span>
+                                        &middot; Confidence <span class="font-semibold text-brand-700" id="resConf">—</span>%
+                                    </p>
+                                </div>
+                                <div class="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-brand-100">
+                                    <div class="text-2xl font-bold text-brand-700" id="faultCount">0</div>
+                                    <div class="text-xs text-slate-500">faults detected</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All detected faults with solutions -->
+                    <div>
+                        <div class="mb-4 flex items-center justify-between">
+                            <h3 class="text-base font-semibold text-earth-800">Detected faults &amp; recommended solutions</h3>
+                            <span class="text-xs text-slate-500" id="mappedNote"></span>
+                        </div>
+                        <div id="faultsList" class="space-y-4"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="mt-12 border-t border-earth-100 bg-white py-6">
+        <div class="mx-auto max-w-7xl px-4 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
+            Crop disease Intelligence &mdash; AI classification mapped to IPM treatment recommendations
+        </div>
+    </footer>
+
+    <script>
+        const $ = (id) => document.getElementById(id);
+
+        const els = {
+            dropZone: $('dropZone'),
+            fileInput: $('fileInput'),
+            uploadPlaceholder: $('uploadPlaceholder'),
+            previewWrap: $('previewWrap'),
+            preview: $('imagePreview'),
+            fileName: $('fileName'),
+            analyzeBtn: $('analyzeBtn'),
+            resetBtn: $('resetBtn'),
+            emptyState: $('emptyState'),
+            loading: $('loading'),
+            errorBox: $('errorBox'),
+            errorMsg: $('errorMsg'),
+            resultSection: $('resultSection'),
+            resProblem: $('resProblem'),
+            resId: $('resId'),
+            resConf: $('resConf'),
+            faultCount: $('faultCount'),
+            faultsList: $('faultsList'),
+            mappedNote: $('mappedNote'),
+            statusDot: $('statusDot'),
+            statusText: $('statusText'),
+        };
+
+        let selectedFile = null;
+
+        function setServerStatus(ok, text) {
+            els.statusDot.className = `h-2 w-2 rounded-full ${ok ? 'bg-brand-500' : 'bg-amber-400'}`;
+            els.statusText.textContent = text;
+        }
+
+        async function checkHealth() {
+            try {
+                const res = await fetch('/api/health');
+                const data = await res.json();
+                if (data.model_loaded) {
+                    setServerStatus(true, `Model ready · ${data.categories_count} categories`);
+                } else {
+                    setServerStatus(false, data.error || 'Model not loaded');
+                }
+            } catch {
+                setServerStatus(false, 'Server offline');
+            }
+        }
+
+        function setError(msg) {
+            els.errorMsg.textContent = msg || 'Unknown error';
+            els.errorBox.classList.remove('hidden');
+            els.emptyState.classList.add('hidden');
+            els.resultSection.classList.add('hidden');
+        }
+
+        function clearError() {
+            els.errorBox.classList.add('hidden');
+            els.errorMsg.textContent = '';
+        }
+
+        function showLoading(on) {
+            els.loading.classList.toggle('hidden', !on);
+            if (on) {
+                els.emptyState.classList.add('hidden');
+                els.resultSection.classList.add('hidden');
+                clearError();
+            }
+        }
+
+        function resetUI() {
+            clearError();
+            showLoading(false);
+            els.resultSection.classList.add('hidden');
+            els.emptyState.classList.remove('hidden');
+            selectedFile = null;
+            els.fileInput.value = '';
+            els.preview.src = '';
+            els.uploadPlaceholder.classList.remove('hidden');
+            els.previewWrap.classList.add('hidden');
+            els.analyzeBtn.disabled = true;
+            els.faultsList.innerHTML = '';
+        }
+
+        function wireFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                els.preview.src = e.target.result;
+                els.fileName.textContent = file.name;
+                els.uploadPlaceholder.classList.add('hidden');
+                els.previewWrap.classList.remove('hidden');
+                els.analyzeBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function confidenceBar(pct) {
+            const color = pct >= 60 ? 'bg-brand-500' : pct >= 30 ? 'bg-amber-400' : 'bg-slate-300';
+            return `
+                <div class="mt-3">
+                    <div class="flex justify-between text-xs text-slate-500">
+                        <span>Confidence</span>
+                        <span class="font-medium text-slate-700">${pct.toFixed(1)}%</span>
+                    </div>
+                    <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full ${color}" style="width: ${Math.min(pct, 100)}%"></div>
+                    </div>
+                </div>`;
+        }
+
+        function renderFaultCard(fault, rank, isPrimary) {
+            const card = document.createElement('article');
+            card.className = `fault-card rounded-2xl border bg-white shadow-sm ${isPrimary ? 'border-brand-200 ring-1 ring-brand-100' : 'border-slate-200'}`;
+
+            const badge = isPrimary
+                ? '<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">Top match</span>'
+                : `<span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">#${rank}</span>`;
+
+            const mappedBadge = fault.mapped
+                ? ''
+                : '<span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">Unmapped class</span>';
+
+            const cultural = fault.solutions?.cultural_biological || fault.cultural_biological || 'No recommendation available.';
+            const chemical = fault.solutions?.chemical_direct || fault.chemical_direct || 'No recommendation available.';
+
+            card.innerHTML = `
+                <div class="border-b border-slate-100 px-5 py-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                        ${badge}
+                        ${mappedBadge}
+                    </div>
+                    <h4 class="mt-2 text-lg font-semibold capitalize text-earth-800">${fault.problem || 'Unknown'}</h4>
+                    <p class="text-xs text-slate-500">Class ID ${fault.class_id}</p>
+                    ${confidenceBar(Number(fault.confidence || 0))}
+                </div>
+                <div class="grid gap-0 sm:grid-cols-2">
+                    <div class="border-b border-slate-100 p-5 sm:border-b-0 sm:border-r">
+                        <div class="flex items-center gap-2">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                                </svg>
+                            </div>
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cultural / Biological</span>
+                        </div>
+                        <p class="mt-3 text-sm leading-relaxed text-slate-700">${cultural}</p>
+                    </div>
+                    <div class="p-5">
+                        <div class="flex items-center gap-2">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/>
+                                </svg>
+                            </div>
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chemical / Direct</span>
+                        </div>
+                        <p class="mt-3 text-sm leading-relaxed text-slate-700">${chemical}</p>
+                    </div>
+                </div>`;
+
+            return card;
+        }
+
+        function renderResults(data) {
+            const faults = data.detected_faults?.length ? data.detected_faults : (data.top_predictions || []);
+            const primary = data.prediction || faults[0] || {};
+
+            els.resProblem.textContent = primary.problem || 'Unknown';
+            els.resId.textContent = primary.class_id ?? '—';
+            els.resConf.textContent = Number(primary.confidence ?? data.confidence ?? 0).toFixed(1);
+            els.faultCount.textContent = faults.length;
+
+            const mapped = data.categories_mapped ?? faults.filter(f => f.mapped).length;
+            els.mappedNote.textContent = `${mapped} of ${faults.length} mapped to categories.json`;
+
+            els.faultsList.innerHTML = '';
+            faults.forEach((fault, i) => {
+                els.faultsList.appendChild(renderFaultCard(fault, i + 1, i === 0));
+            });
+
+            els.emptyState.classList.add('hidden');
+            els.resultSection.classList.remove('hidden');
+        }
+
+        // Events
+        els.dropZone.addEventListener('click', () => els.fileInput.click());
+        els.fileInput.addEventListener('change', (e) => wireFile(e.target.files?.[0]));
+        els.resetBtn.addEventListener('click', resetUI);
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            els.dropZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                els.dropZone.classList.add('border-brand-500', 'bg-brand-50/50');
+            });
+        });
+        ['dragleave', 'drop'].forEach(evt => {
+            els.dropZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                els.dropZone.classList.remove('border-brand-500', 'bg-brand-50/50');
+            });
+        });
+        els.dropZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer?.files?.[0];
+            if (file) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                els.fileInput.files = dt.files;
+                wireFile(file);
+            }
+        });
+
+        $('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearError();
+
+            if (!selectedFile) {
+                setError('Please select an image first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            showLoading(true);
+            els.analyzeBtn.disabled = true;
+
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const data = await response.json().catch(() => ({}));
+
+                showLoading(false);
+                els.analyzeBtn.disabled = false;
+
+                if (!response.ok || !data.success) {
+                    setError(data.error || `Request failed (${response.status})`);
+                    return;
+                }
+
+                renderResults(data);
+            } catch {
+                showLoading(false);
+                els.analyzeBtn.disabled = false;
+                setError('Could not reach the server. Make sure the Flask app is running on port 5000.');
+            }
+        });
+
+        checkHealth();
+        resetUI();
+    </script>
+</body>
+</html>
