@@ -1,228 +1,216 @@
 import os
+import io
 import json
-import re
-from flask import Flask, request, jsonify, render_template
-from werkzeug.utils import secure_filename
+import sqlite3
+import urllib.request
+import numpy as np
 from PIL import Image
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+import onnxruntime as ort
 
-try:
-    from ultralytics import YOLO
-except Exception:
-    YOLO = None
+app = Flask(__name__, template_folder="templates")
+CORS(app)
 
-app = Flask(__name__)
+# --- CONFIGURATION ---
+MODEL_URL = "https://huggingface.co/Samson123Ade/maize-infection-detection/resolve/main/best.onnx"
+MODEL_LOCAL_PATH = "best.onnx"
+DB_PATH = "database.db"
+CONFIDENCE_THRESHOLD = 5.0
+IMAGE_SIZE = (640, 640)  # Standard YOLO ONNX input shape (adjust if using 224x224)
 
-UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
-CONFIDENCE_THRESHOLD = 5.0  # minimum % to list as a detected fault
-TOP_K = 5
+session = None
+CATEGORY_MAP = {}
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-MODEL_PATH = os.environ.get("MODEL_PATH", "best.pt")
-model = None
-MODEL_LOAD_ERROR = None
-
-
-def _normalize_name(value: str | None) -> str:
-    if not value:
-        return ""
-    return re.sub(r"\s+", " ", value.strip().lower())
-
-
-def _load_categories():
-    path = os.path.join(os.path.dirname(__file__), "categories.json")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-CATEGORY_MAP = _load_categories()
-NAME_INDEX: dict[str, dict] = {}
-
-for key, entry in CATEGORY_MAP.items():
-    if not isinstance(entry, dict):
-        continue
-    problem = entry.get("problem")
-    if not problem:
-        continue
-    normalized = _normalize_name(problem)
-    NAME_INDEX[normalized] = {
-        "class_id": int(key),
-        "problem": problem,
-        "cultural_biological": entry.get("cultural_biological"),
-        "chemical_direct": entry.get("chemical_direct"),
-    }
-
-
-def _load_model_if_needed():
-    global model, MODEL_LOAD_ERROR
-    if model is not None or MODEL_LOAD_ERROR is not None:
-        return
-    if YOLO is None:
-        MODEL_LOAD_ERROR = (
-            "Ultralytics is not installed. Run: pip install -r requirements.txt"
+# --- 1. DATABASE INITIALIZATION ---
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            source TEXT,
+            problem TEXT,
+            confidence REAL,
+            cultural_biological TEXT,
+            chemical_direct TEXT
         )
-        return
-    if not os.path.exists(MODEL_PATH):
-        MODEL_LOAD_ERROR = (
-            f"Model file not found at '{MODEL_PATH}'. "
-            "Place your trained best.pt in the project folder and restart."
-        )
-        return
-    try:
-        model = YOLO(MODEL_PATH)
-    except Exception as exc:
-        MODEL_LOAD_ERROR = f"Failed to load model '{MODEL_PATH}': {exc}"
+    ''')
+    conn.commit()
+    conn.close()
 
+# --- 2. CATEGORIES MAPPING ---
+def load_categories():
+    global CATEGORY_MAP
+    category_file = os.path.join(os.path.dirname(__file__), "categories.json")
+    if os.path.exists(category_file):
+        try:
+            with open(category_file, "r", encoding="utf-8") as f:
+                CATEGORY_MAP = json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load categories.json: {e}")
 
-def allowed_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+# --- 3. ONNX MODEL LOADER FROM HUGGINGFACE ---
+def load_onnx_model():
+    global session
+    if session is not None:
+        return session
 
+    # Download model from Hugging Face if not already cached locally
+    if not os.path.exists(MODEL_LOCAL_PATH):
+        print(f"Downloading ONNX model from Hugging Face: {MODEL_URL}...")
+        urllib.request.urlretrieve(MODEL_URL, MODEL_LOCAL_PATH)
+        print("Model download complete.")
 
-def category_for_class_id(class_id: int, fallback_name: str | None = None) -> dict:
-    entry = CATEGORY_MAP.get(str(class_id))
-    if isinstance(entry, dict):
-        return {
-            "class_id": class_id,
-            "problem": entry.get("problem") or fallback_name or f"Class {class_id}",
-            "cultural_biological": entry.get("cultural_biological"),
-            "chemical_direct": entry.get("chemical_direct"),
-            "mapped": True,
-        }
+    print("Loading ONNX Runtime Session...")
+    session = ort.InferenceSession(MODEL_LOCAL_PATH, providers=['CPUExecutionProvider'])
+    print("ONNX Session successfully initialized.")
+    return session
 
-    if fallback_name:
-        normalized = _normalize_name(fallback_name)
-        by_name = NAME_INDEX.get(normalized)
-        if by_name:
-            return {**by_name, "mapped": True}
+# --- 4. IMAGE PREPROCESSING FOR ONNX ---
+def preprocess_image(image_bytes):
+    img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    img = img.resize(IMAGE_SIZE)
+    
+    # Convert image to numpy array, scale to [0, 1]
+    img_data = np.array(img, dtype=np.float32) / 255.0
+    
+    # Transpose to Channel-First format: (H, W, C) -> (C, H, W)
+    img_data = np.transpose(img_data, (2, 0, 1))
+    
+    # Add Batch dimension: (1, C, H, W)
+    img_data = np.expand_dims(img_data, axis=0)
+    return img_data
 
-        for name_key, mapped in NAME_INDEX.items():
-            if normalized in name_key or name_key in normalized:
-                return {**mapped, "mapped": True}
+# --- Softmax Helper ---
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=-1, keepdims=True)
 
-    return {
-        "class_id": class_id,
-        "problem": fallback_name or f"Class {class_id}",
-        "cultural_biological": None,
-        "chemical_direct": None,
-        "mapped": False,
-    }
+# Startup tasks
+init_db()
+load_categories()
 
-
-def build_prediction(class_id: int, confidence: float, fallback_name: str | None = None) -> dict:
-    info = category_for_class_id(class_id, fallback_name=fallback_name)
-    return {
-        "class_id": info["class_id"],
-        "confidence": round(confidence, 2),
-        "problem": info["problem"],
-        "cultural_biological": info["cultural_biological"],
-        "chemical_direct": info["chemical_direct"],
-        "mapped": info["mapped"],
-        "solutions": {
-            "cultural_biological": info["cultural_biological"]
-            or "No cultural/biological recommendation found in categories.json.",
-            "chemical_direct": info["chemical_direct"]
-            or "No chemical/direct recommendation found in categories.json.",
-        },
-    }
-
+# --- ROUTES ---
 
 @app.route("/")
 def index():
+    """Serves the frontend directly"""
     return render_template("index.html")
 
-
-@app.route("/api/health")
+@app.route("/api/health", methods=["GET"])
 def health():
-    _load_model_if_needed()
-    return jsonify(
-        {
-            "status": "ok" if MODEL_LOAD_ERROR is None else "degraded",
-            "model_loaded": model is not None,
-            "model_path": MODEL_PATH,
-            "categories_count": len(CATEGORY_MAP),
-            "error": MODEL_LOAD_ERROR,
-        }
-    )
-
+    """Health check endpoint"""
+    return jsonify({
+        "status": "online",
+        "model_loaded": session is not None,
+        "database": os.path.exists(DB_PATH)
+    })
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    _load_model_if_needed()
-    if MODEL_LOAD_ERROR is not None:
-        return jsonify({"success": False, "error": MODEL_LOAD_ERROR}), 503
-
-    if "file" not in request.files:
-        return jsonify({"success": False, "error": "No file part in the request"}), 400
-
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"success": False, "error": "No file selected for uploading"}), 400
-
-    if not file or not allowed_file(file.filename):
-        return jsonify(
-            {"success": False, "error": "Allowed file types are png, jpg, jpeg, webp"}
-        ), 400
-
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
+    """Main endpoint for web app and ESP32 uploads"""
     try:
-        file.save(filepath)
+        ort_sess = load_onnx_model()
 
-        with Image.open(filepath) as im:
-            im.verify()
-
-        results = model(filepath)
-        result = results[0]
-        probs = result.probs
-        top1_idx = int(probs.top1)
-        top1_conf = float(probs.top1conf) * 100
-
-        names = getattr(result, "names", {}) or {}
-
-        topk: list[dict] = []
-        top5 = getattr(probs, "top5", None)
-        top5conf = getattr(probs, "top5conf", None)
-
-        if top5 is not None and top5conf is not None:
-            for idx, conf in zip(list(top5), list(top5conf)):
-                idx_i = int(idx)
-                conf_pct = float(conf) * 100
-                fallback = names.get(idx_i) if isinstance(names, dict) else None
-                topk.append(build_prediction(idx_i, conf_pct, fallback_name=fallback))
+        # Get file upload or raw binary from ESP32
+        if "file" in request.files:
+            file_bytes = request.files["file"].read()
+            source = request.form.get("source", "Web Client")
         else:
-            fallback = names.get(top1_idx) if isinstance(names, dict) else None
-            topk.append(build_prediction(top1_idx, top1_conf, fallback_name=fallback))
+            file_bytes = request.data
+            source = "ESP32"
 
-        detected_faults = [
-            item for item in topk if item["confidence"] >= CONFIDENCE_THRESHOLD
-        ]
-        if not detected_faults and topk:
-            detected_faults = [topk[0]]
+        if not file_bytes:
+            return jsonify({"success": False, "error": "No image data received"}), 400
 
-        primary = topk[0] if topk else build_prediction(top1_idx, top1_conf)
+        # Preprocess image
+        input_tensor = preprocess_image(file_bytes)
 
-        return jsonify(
-            {
-                "success": True,
-                "class_id": primary["class_id"],
-                "confidence": primary["confidence"],
-                "prediction": primary,
-                "top_predictions": topk,
-                "detected_faults": detected_faults,
-                "categories_mapped": sum(1 for item in topk if item["mapped"]),
+        # Get ONNX input/output names
+        input_name = ort_sess.get_inputs()[0].name
+        output_name = ort_sess.get_outputs()[0].name
+
+        # Run ONNX inference
+        outputs = ort_sess.run([output_name], {input_name: input_tensor})
+        raw_output = outputs[0][0]
+
+        # Calculate probabilities
+        probabilities = softmax(raw_output)
+        top1_idx = int(np.argmax(probabilities))
+        top1_conf = float(probabilities[top1_idx]) * 100
+
+        # Map to IPM recommendations
+        category_entry = CATEGORY_MAP.get(str(top1_idx), {})
+        problem_name = category_entry.get("problem", f"Disease Class {top1_idx}")
+        cultural = category_entry.get("cultural_biological", "Maintain proper crop spacing and weed control.")
+        chemical = category_entry.get("chemical_direct", "Apply targeted bio-pesticide if threshold exceeded.")
+
+        # Save result to SQLite Database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO predictions (source, problem, confidence, cultural_biological, chemical_direct)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (source, problem_name, round(top1_conf, 2), cultural, chemical))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "source": source,
+            "class_id": top1_idx,
+            "confidence": round(top1_conf, 2),
+            "problem": problem_name,
+            "solutions": {
+                "cultural_biological": cultural,
+                "chemical_direct": chemical
             }
-        )
+        })
 
-    except Exception as exc:
-        return jsonify({"success": False, "error": f"Inference failed: {exc}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
-    finally:
-        if os.path.exists(filepath):
-            os.remove(filepath)
+@app.route("/api/latest", methods=["GET"])
+def get_latest():
+    """Fetches the latest reading from DB (Used by frontend polling)"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, timestamp, source, problem, confidence, cultural_biological, chemical_direct FROM predictions ORDER BY id DESC LIMIT 1")
+    row = cursor.fetchone()
+    conn.close()
 
+    if not row:
+        return jsonify({"success": False, "message": "No database records found"}), 404
+
+    return jsonify({
+        "success": True,
+        "id": row[0],
+        "timestamp": row[1],
+        "source": row[2],
+        "problem": row[3],
+        "confidence": row[4],
+        "solutions": {
+            "cultural_biological": row[5],
+            "chemical_direct": row[6]
+        }
+    })
+
+@app.route("/api/history", methods=["GET"])
+def get_history():
+    """Returns historical logs"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, timestamp, source, problem, confidence FROM predictions ORDER BY id DESC LIMIT 20")
+    rows = cursor.fetchall()
+    conn.close()
+
+    history = [
+        {"id": r[0], "timestamp": r[1], "source": r[2], "problem": r[3], "confidence": r[4]}
+        for r in rows
+    ]
+    return jsonify({"success": True, "history": history})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
