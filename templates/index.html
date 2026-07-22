@@ -32,6 +32,12 @@
         .spinner { animation: spin-slow 0.9s linear infinite; }
         .fault-card { transition: box-shadow 0.2s ease, border-color 0.2s ease; }
         .fault-card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.35s ease-out forwards; }
     </style>
 </head>
 <body class="min-h-screen bg-earth-50 text-slate-800 grain">
@@ -51,11 +57,22 @@
                 </div>
             </div>
             <div id="serverStatus" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
-                <span class="h-2 w-2 rounded-full bg-slate-300" id="statusDot"></span>
-                <span id="statusText">Checking server…</span>
+                <span class="h-2 w-2 rounded-full bg-slate-300 animate-pulse" id="statusDot"></span>
+                <span id="statusText">Checking server status…</span>
             </div>
         </div>
     </nav>
+
+    <!-- Global Model Cache Status Notification Banner -->
+    <div id="modelCacheBanner" class="hidden border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 transition-all">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-2">
+                <span id="cacheBannerIcon" class="spinner inline-block h-3.5 w-3.5 rounded-full border-2 border-amber-600 border-t-transparent"></span>
+                <span id="cacheBannerText">Caching AI weights & warming up pipeline into memory…</span>
+            </div>
+            <button onclick="this.parentElement.parentElement.classList.add('hidden')" class="text-amber-600 hover:text-amber-900 font-bold">&times;</button>
+        </div>
+    </div>
 
     <!-- Hero -->
     <header class="border-b border-earth-100 bg-gradient-to-b from-white to-earth-50">
@@ -74,7 +91,7 @@
         </div>
     </header>
 
-    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10 space-y-12">
         <div class="grid gap-8 lg:grid-cols-5">
 
             <!-- Upload panel -->
@@ -216,6 +233,29 @@
                 </div>
             </section>
         </div>
+
+        <!-- Historic Data & Streaming Feed Section -->
+        <section class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-earth-100 pb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-earth-800">Historic Assessments Log</h3>
+                    <p class="text-xs text-slate-500">Real-time live stream of historical diagnosis and diagnostic records</p>
+                </div>
+                <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+                    <span class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75"></span>
+                        <span class="relative inline-flex h-2 w-2 rounded-full bg-brand-500"></span>
+                    </span>
+                    <span id="streamStatusText">Live Feed Connected</span>
+                </div>
+            </div>
+
+            <div id="historyFeed" class="mt-6 divide-y divide-slate-100 overflow-hidden">
+                <div id="historyEmptyState" class="py-12 text-center text-sm text-slate-400">
+                    Listening for historical diagnostic data...
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer class="mt-12 border-t border-earth-100 bg-white py-6">
@@ -249,27 +289,66 @@
             mappedNote: $('mappedNote'),
             statusDot: $('statusDot'),
             statusText: $('statusText'),
+            modelCacheBanner: $('modelCacheBanner'),
+            cacheBannerIcon: $('cacheBannerIcon'),
+            cacheBannerText: $('cacheBannerText'),
+            historyFeed: $('historyFeed'),
+            historyEmptyState: $('historyEmptyState'),
+            streamStatusText: $('streamStatusText'),
         };
 
         let selectedFile = null;
+        let isModelCached = false;
+        let checkHealthInterval = null;
 
         function setServerStatus(ok, text) {
             els.statusDot.className = `h-2 w-2 rounded-full ${ok ? 'bg-brand-500' : 'bg-amber-400'}`;
             els.statusText.textContent = text;
         }
 
+        // Handles model caching status check & notifications
         async function checkHealth() {
             try {
                 const res = await fetch('/api/health');
                 const data = await res.json();
-                if (data.model_loaded) {
-                    setServerStatus(true, `Model ready · ${data.categories_count} categories`);
+                
+                if (data.model_loaded || data.status === 'ready') {
+                    setServerStatus(true, `Model ready · ${data.categories_count || 0} categories`);
+                    
+                    if (!isModelCached) {
+                        isModelCached = true;
+                        showModelCacheCompletedBanner(data.categories_count);
+                    }
+                    if (checkHealthInterval) clearInterval(checkHealthInterval);
+                } else if (data.status === 'caching' || data.is_caching) {
+                    setServerStatus(false, 'Caching model weights…');
+                    showModelCachingBanner('Model weights are currently caching into memory. Please wait…');
                 } else {
-                    setServerStatus(false, data.error || 'Model not loaded');
+                    setServerStatus(false, data.error || 'Model initializing…');
+                    showModelCachingBanner('Initializing model pipeline…');
                 }
             } catch {
                 setServerStatus(false, 'Server offline');
             }
+        }
+
+        function showModelCachingBanner(message) {
+            els.modelCacheBanner.classList.remove('hidden');
+            els.cacheBannerText.textContent = message;
+        }
+
+        function showModelCacheCompletedBanner(categoriesCount) {
+            els.modelCacheBanner.classList.remove('hidden', 'bg-amber-50', 'border-amber-200', 'text-amber-800');
+            els.modelCacheBanner.classList.add('bg-brand-50', 'border-brand-200', 'text-brand-800');
+            
+            els.cacheBannerIcon.className = 'flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-white text-[10px] font-bold';
+            els.cacheBannerIcon.textContent = '✓';
+            
+            els.cacheBannerText.textContent = `Model caching complete! Model is warm and ready with ${categoriesCount || ''} categories available.`;
+            
+            setTimeout(() => {
+                els.modelCacheBanner.classList.add('hidden');
+            }, 6000);
         }
 
         function setError(msg) {
@@ -409,6 +488,86 @@
             els.resultSection.classList.remove('hidden');
         }
 
+        // Historic Data Stream Handler
+        function appendHistoryItem(item) {
+            if (els.historyEmptyState) {
+                els.historyEmptyState.remove();
+            }
+
+            const el = document.createElement('div');
+            el.className = 'animate-fade-in py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4';
+
+            const prob = item.problem || item.prediction?.problem || 'Unspecified Diagnostic';
+            const conf = Number(item.confidence || item.prediction?.confidence || 0).toFixed(1);
+            const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
+            const id = item.id || item.class_id || '#';
+
+            el.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 font-bold text-xs ring-1 ring-brand-200">
+                        ${conf}%
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h4 class="font-semibold text-slate-800 capitalize">${prob}</h4>
+                            <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500">ID ${id}</span>
+                        </div>
+                        <p class="text-xs text-slate-500">${timestamp}</p>
+                    </div>
+                </div>
+                <div class="text-xs text-slate-600 max-w-xs truncate">
+                    ${item.solutions?.cultural_biological || item.cultural_biological || 'Treatment cataloged'}
+                </div>
+            `;
+
+            els.historyFeed.prepend(el);
+        }
+
+        function initHistoryStream() {
+            if (!window.EventSource) {
+                els.streamStatusText.textContent = 'Streaming Not Supported';
+                fetchHistoryFallback();
+                return;
+            }
+
+            const source = new EventSource('/api/history/stream');
+
+            source.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (Array.isArray(data)) {
+                        data.forEach(appendHistoryItem);
+                    } else {
+                        appendHistoryItem(data);
+                    }
+                } catch (err) {
+                    console.error('Failed to parse history stream item', err);
+                }
+            };
+
+            source.onerror = () => {
+                els.streamStatusText.textContent = 'Reconnecting feed…';
+                fetchHistoryFallback();
+            };
+
+            source.onopen = () => {
+                els.streamStatusText.textContent = 'Live Feed Connected';
+            };
+        }
+
+        async function fetchHistoryFallback() {
+            try {
+                const res = await fetch('/api/history');
+                if (!res.ok) return;
+                const history = await res.json();
+                if (Array.isArray(history)) {
+                    history.forEach(appendHistoryItem);
+                }
+            } catch (e) {
+                // Ignore fallback failures silently
+            }
+        }
+
         // Events
         els.dropZone.addEventListener('click', () => els.fileInput.click());
         els.fileInput.addEventListener('change', (e) => wireFile(e.target.files?.[0]));
@@ -464,6 +623,14 @@
                 }
 
                 renderResults(data);
+                
+                // Add the current result to history log feed immediately
+                if (data.prediction) {
+                    appendHistoryItem({
+                        ...data.prediction,
+                        timestamp: new Date().toISOString()
+                    });
+                }
             } catch {
                 showLoading(false);
                 els.analyzeBtn.disabled = false;
@@ -471,8 +638,11 @@
             }
         });
 
+        // Initialize health checks and streaming log feed
         checkHealth();
+        checkHealthInterval = setInterval(checkHealth, 4000);
         resetUI();
+        initHistoryStream();
     </script>
 </body>
 </html>
