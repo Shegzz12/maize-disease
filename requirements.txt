@@ -6,3 +6,4 @@ pillow>=10.0.0
 torch>=2.0.0
 torchvision>=0.15.0
 gunicorn
+onnxruntime>=1.16.0
