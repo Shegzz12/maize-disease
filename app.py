@@ -17,7 +17,7 @@ MODEL_URL = "https://huggingface.co/Samson123Ade/maize-infection-detection/resol
 MODEL_LOCAL_PATH = "best.onnx"
 DB_PATH = "database.db"
 CONFIDENCE_THRESHOLD = 5.0
-IMAGE_SIZE = (640, 640)  # Standard YOLO ONNX input shape (adjust if using 224x224)
+IMAGE_SIZE = (224, 224)  # Standard YOLO ONNX input shape (adjust if using 224x224)
 
 session = None
 CATEGORY_MAP = {}
