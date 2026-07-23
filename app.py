@@ -97,6 +97,7 @@ def index():
     """Serves the frontend directly"""
     return render_template("index.html")
 
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({
@@ -106,6 +107,7 @@ def health():
         "categories_count": len(CATEGORY_MAP)   # add this
     })
 
+
 @app.route("/api/categories", methods=["GET"])
 def get_categories():
     """Serves category mappings to the frontend"""
@@ -114,6 +116,7 @@ def get_categories():
         "count": len(CATEGORY_MAP),
         "categories": CATEGORY_MAP
     })
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -179,6 +182,7 @@ def predict():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @app.route("/api/latest", methods=["GET"])
 def get_latest():
     """Fetches the latest reading from DB"""
@@ -203,6 +207,7 @@ def get_latest():
             "chemical_direct": row[6]
         }
     })
+
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
