@@ -99,11 +99,11 @@ def index():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    """Health check endpoint"""
     return jsonify({
         "status": "online",
         "model_loaded": session is not None,
-        "database": os.path.exists(DB_PATH)
+        "database": os.path.exists(DB_PATH),
+        "categories_count": len(CATEGORY_MAP)   # add this
     })
 
 @app.route("/api/categories", methods=["GET"])
@@ -157,18 +157,25 @@ def predict():
         conn.commit()
         conn.close()
 
+        # inside /predict, replace the final return with:
+        mapped = str(top1_idx) in CATEGORY_MAP
+        prediction_obj = {
+            "class_id": top1_idx,
+            "problem": problem_name,
+            "confidence": round(top1_conf, 2)
+        }
         return jsonify({
             "success": True,
             "source": source,
             "class_id": top1_idx,
             "confidence": round(top1_conf, 2),
             "problem": problem_name,
-            "solutions": {
-                "cultural_biological": cultural,
-                "chemical_direct": chemical
-            }
+            "solutions": {"cultural_biological": cultural, "chemical_direct": chemical},
+            "prediction": prediction_obj,
+            "detected_faults": [{**prediction_obj, "mapped": mapped,
+                                  "cultural_biological": cultural, "chemical_direct": chemical}],
+            "categories_mapped": 1 if mapped else 0
         })
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
