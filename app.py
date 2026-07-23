@@ -114,6 +114,15 @@ def health():
         "database": os.path.exists(DB_PATH)
     })
 
+@app.route("/api/categories", methods=["GET"])
+def get_categories():
+    """Serves categories mapping to the frontend"""
+    return jsonify({
+        "success": True,
+        "count": len(CATEGORY_MAP),
+        "categories": CATEGORY_MAP
+    })
+
 @app.route("/predict", methods=["POST"])
 def predict():
     """Main endpoint for web app and ESP32 uploads"""
