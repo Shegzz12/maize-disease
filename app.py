@@ -41,15 +41,21 @@ def init_db():
     conn.close()
 
 # --- 2. CATEGORIES MAPPING ---
+# --- 2. CATEGORIES MAPPING ---
 def load_categories():
     global CATEGORY_MAP
-    category_file = os.path.join(os.path.dirname(__file__), "categories.json")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    category_file = os.path.join(base_dir, "categories.json")
+    
     if os.path.exists(category_file):
         try:
             with open(category_file, "r", encoding="utf-8") as f:
                 CATEGORY_MAP = json.load(f)
+            print(f"Successfully loaded {len(CATEGORY_MAP)} categories from categories.json")
         except Exception as e:
-            print(f"Warning: Failed to load categories.json: {e}")
+            print(f"ERROR loading categories.json: {e}")
+    else:
+        print(f"WARNING: categories.json not found at path: {category_file}")
 
 # --- 3. ONNX MODEL LOADER FROM HUGGINGFACE ---
 def load_onnx_model():
