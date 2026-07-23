@@ -17,7 +17,7 @@ MODEL_URL = "https://huggingface.co/Samson123Ade/maize-infection-detection/resol
 MODEL_LOCAL_PATH = "best.onnx"
 DB_PATH = "database.db"
 CONFIDENCE_THRESHOLD = 5.0
-IMAGE_SIZE = (224, 224)  # Standard YOLO ONNX input shape (adjust if using 224x224)
+IMAGE_SIZE = (224, 224)  # Standard ONNX input shape
 
 session = None
 CATEGORY_MAP = {}
@@ -41,21 +41,19 @@ def init_db():
     conn.close()
 
 # --- 2. CATEGORIES MAPPING ---
-# --- 2. CATEGORIES MAPPING ---
 def load_categories():
     global CATEGORY_MAP
     base_dir = os.path.dirname(os.path.abspath(__file__))
     category_file = os.path.join(base_dir, "categories.json")
-    
     if os.path.exists(category_file):
         try:
             with open(category_file, "r", encoding="utf-8") as f:
                 CATEGORY_MAP = json.load(f)
             print(f"Successfully loaded {len(CATEGORY_MAP)} categories from categories.json")
         except Exception as e:
-            print(f"ERROR loading categories.json: {e}")
+            print(f"Warning: Failed to load categories.json: {e}")
     else:
-        print(f"WARNING: categories.json not found at path: {category_file}")
+        print(f"Warning: categories.json not found at {category_file}")
 
 # --- 3. ONNX MODEL LOADER FROM HUGGINGFACE ---
 def load_onnx_model():
@@ -63,7 +61,6 @@ def load_onnx_model():
     if session is not None:
         return session
 
-    # Download model from Hugging Face if not already cached locally
     if not os.path.exists(MODEL_LOCAL_PATH):
         print(f"Downloading ONNX model from Hugging Face: {MODEL_URL}...")
         urllib.request.urlretrieve(MODEL_URL, MODEL_LOCAL_PATH)
@@ -79,13 +76,8 @@ def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
     img = img.resize(IMAGE_SIZE)
     
-    # Convert image to numpy array, scale to [0, 1]
     img_data = np.array(img, dtype=np.float32) / 255.0
-    
-    # Transpose to Channel-First format: (H, W, C) -> (C, H, W)
     img_data = np.transpose(img_data, (2, 0, 1))
-    
-    # Add Batch dimension: (1, C, H, W)
     img_data = np.expand_dims(img_data, axis=0)
     return img_data
 
@@ -116,7 +108,7 @@ def health():
 
 @app.route("/api/categories", methods=["GET"])
 def get_categories():
-    """Serves categories mapping to the frontend"""
+    """Serves category mappings to the frontend"""
     return jsonify({
         "success": True,
         "count": len(CATEGORY_MAP),
@@ -129,7 +121,6 @@ def predict():
     try:
         ort_sess = load_onnx_model()
 
-        # Get file upload or raw binary from ESP32
         if "file" in request.files:
             file_bytes = request.files["file"].read()
             source = request.form.get("source", "Web Client")
@@ -140,29 +131,23 @@ def predict():
         if not file_bytes:
             return jsonify({"success": False, "error": "No image data received"}), 400
 
-        # Preprocess image
         input_tensor = preprocess_image(file_bytes)
 
-        # Get ONNX input/output names
         input_name = ort_sess.get_inputs()[0].name
         output_name = ort_sess.get_outputs()[0].name
 
-        # Run ONNX inference
         outputs = ort_sess.run([output_name], {input_name: input_tensor})
         raw_output = outputs[0][0]
 
-        # Calculate probabilities
         probabilities = softmax(raw_output)
         top1_idx = int(np.argmax(probabilities))
         top1_conf = float(probabilities[top1_idx]) * 100
 
-        # Map to IPM recommendations
         category_entry = CATEGORY_MAP.get(str(top1_idx), {})
         problem_name = category_entry.get("problem", f"Disease Class {top1_idx}")
         cultural = category_entry.get("cultural_biological", "Maintain proper crop spacing and weed control.")
         chemical = category_entry.get("chemical_direct", "Apply targeted bio-pesticide if threshold exceeded.")
 
-        # Save result to SQLite Database
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute('''
@@ -189,7 +174,7 @@ def predict():
 
 @app.route("/api/latest", methods=["GET"])
 def get_latest():
-    """Fetches the latest reading from DB (Used by frontend polling)"""
+    """Fetches the latest reading from DB"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT id, timestamp, source, problem, confidence, cultural_biological, chemical_direct FROM predictions ORDER BY id DESC LIMIT 1")
