@@ -19,6 +19,15 @@ DB_PATH = "database.db"
 CONFIDENCE_THRESHOLD = 5.0
 IMAGE_SIZE = (224, 224)  # Standard ONNX input shape
 
+# Label used by the new 6-class model to mean "no disease/pest present"
+HEALTHY_LABEL = "healthy"
+
+# Same normalization used during training (ImageNet mean/std) — must match
+# the other maize-infection-detection deployment, since both load the same
+# best.onnx model.
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
 session = None
 CATEGORY_MAP = {}
 
@@ -56,15 +65,43 @@ def load_categories():
         print(f"Warning: categories.json not found at {category_file}")
 
 # --- 3. ONNX MODEL LOADER FROM HUGGINGFACE ---
+def _get_remote_content_length(url):
+    """HEAD request to check the size of the file currently hosted at `url`.
+    Returns None if it can't be determined (network issue, no Content-Length, etc.)."""
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            size = resp.headers.get("Content-Length")
+            return int(size) if size is not None else None
+    except Exception as e:
+        print(f"Could not check remote size for {url}: {e}")
+        return None
+
 def load_onnx_model():
     global session
     if session is not None:
         return session
 
-    if not os.path.exists(MODEL_LOCAL_PATH):
-        print(f"Downloading ONNX model from Hugging Face: {MODEL_URL}...")
+    local_exists = os.path.exists(MODEL_LOCAL_PATH)
+    local_size = os.path.getsize(MODEL_LOCAL_PATH) if local_exists else None
+    remote_size = _get_remote_content_length(MODEL_URL)
+
+    # Re-download if there's no local copy, OR if the file hosted at MODEL_URL
+    # has a different size than what's cached (i.e. a new model was pushed to
+    # Hugging Face under the same filename).
+    needs_download = (
+        not local_exists
+        or (remote_size is not None and remote_size != local_size)
+    )
+
+    if needs_download:
+        print(f"Downloading ONNX model from Hugging Face: {MODEL_URL} "
+              f"(local_size={local_size}, remote_size={remote_size}) ...")
         urllib.request.urlretrieve(MODEL_URL, MODEL_LOCAL_PATH)
         print("Model download complete.")
+    else:
+        print(f"Using cached model at {MODEL_LOCAL_PATH} "
+              f"(size={local_size}, remote reports same size)")
 
     print("Loading ONNX Runtime Session...")
     session = ort.InferenceSession(MODEL_LOCAL_PATH, providers=['CPUExecutionProvider'])
@@ -75,10 +112,11 @@ def load_onnx_model():
 def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
     img = img.resize(IMAGE_SIZE)
-    
+
     img_data = np.array(img, dtype=np.float32) / 255.0
+    img_data = (img_data - IMAGENET_MEAN) / IMAGENET_STD
     img_data = np.transpose(img_data, (2, 0, 1))
-    img_data = np.expand_dims(img_data, axis=0)
+    img_data = np.expand_dims(img_data, axis=0).astype(np.float32)
     return img_data
 
 # --- Softmax Helper ---
@@ -150,6 +188,7 @@ def predict():
         problem_name = category_entry.get("problem", f"Disease Class {top1_idx}")
         cultural = category_entry.get("cultural_biological", "Maintain proper crop spacing and weed control.")
         chemical = category_entry.get("chemical_direct", "Apply targeted bio-pesticide if threshold exceeded.")
+        is_healthy = problem_name.strip().lower() == HEALTHY_LABEL
 
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -165,7 +204,8 @@ def predict():
         prediction_obj = {
             "class_id": top1_idx,
             "problem": problem_name,
-            "confidence": round(top1_conf, 2)
+            "confidence": round(top1_conf, 2),
+            "is_healthy": is_healthy
         }
         return jsonify({
             "success": True,
@@ -173,6 +213,7 @@ def predict():
             "class_id": top1_idx,
             "confidence": round(top1_conf, 2),
             "problem": problem_name,
+            "is_healthy": is_healthy,
             "solutions": {"cultural_biological": cultural, "chemical_direct": chemical},
             "prediction": prediction_obj,
             "detected_faults": [{**prediction_obj, "mapped": mapped,
