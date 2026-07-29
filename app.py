@@ -189,23 +189,38 @@ def _load_resized_rgb(image_bytes):
 
 
 def preprocess_imagenet(image_bytes):
-    """ImageNet mean/std normalization — used by the pest model (best.onnx)."""
+    """ImageNet mean/std normalization — used by the pest model (best.onnx).
+    Returns an unbatched HWC array; `format_for_model` handles the final
+    layout (NCHW vs NHWC) and batch dimension per the target model."""
     img_data = _load_resized_rgb(image_bytes) / 255.0
-    img_data = (img_data - IMAGENET_MEAN) / IMAGENET_STD
-    img_data = np.transpose(img_data, (2, 0, 1))
-    img_data = np.expand_dims(img_data, axis=0).astype(np.float32)
-    return img_data
+    return (img_data - IMAGENET_MEAN) / IMAGENET_STD
 
 
 def preprocess_mobilenet(image_bytes):
     """MobileNetV2 `preprocess_input`-equivalent normalization: scales to
     [-1, 1]. Used by the disease model (and, by default, the gate model —
     see GATE_PREPROCESS note above). Matches keras.applications.mobilenet_v2
-    .preprocess_input, which does: x / 127.5 - 1, channel order RGB, NHWC."""
+    .preprocess_input, which does: x / 127.5 - 1, channel order RGB.
+    Returns an unbatched HWC array; `format_for_model` handles the final
+    layout and batch dimension per the target model."""
     img_data = _load_resized_rgb(image_bytes)
-    img_data = (img_data / 127.5) - 1.0
-    img_data = np.expand_dims(img_data, axis=0).astype(np.float32)  # NHWC, matches Keras/TF export
-    return img_data
+    return (img_data / 127.5) - 1.0
+
+
+def format_for_model(sess, hwc_image):
+    """Adapt a normalized HWC (height, width, channels) image to the exact
+    input layout the ONNX model expects, then add the batch dimension.
+
+    Models exported from Keras/TF are channels-last (N, H, W, C) while models
+    exported from PyTorch/torchvision are channels-first (N, C, H, W). We read
+    the target layout from the model's own input signature so each model gets
+    the tensor it expects, instead of hard-coding one convention.
+    """
+    shape = sess.get_inputs()[0].shape  # e.g. [1, 3, 224, 224] or [N, 224, 224, 3]
+    # Channels-last when the last static dim is the 3 colour channels.
+    channels_last = len(shape) == 4 and shape[-1] == 3
+    arr = hwc_image if channels_last else np.transpose(hwc_image, (2, 0, 1))
+    return np.expand_dims(arr, axis=0).astype(np.float32)
 
 
 def softmax(x):
@@ -227,8 +242,9 @@ def run_gate_model(image_bytes):
     input_name = sess.get_inputs()[0].name
     output_name = sess.get_outputs()[0].name
 
-    tensor = preprocess_mobilenet(image_bytes) if GATE_PREPROCESS == "mobilenet" \
+    hwc = preprocess_mobilenet(image_bytes) if GATE_PREPROCESS == "mobilenet" \
         else preprocess_imagenet(image_bytes)
+    tensor = format_for_model(sess, hwc)
 
     raw = sess.run([output_name], {input_name: tensor})[0][0]
 
@@ -255,7 +271,7 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
     input_name = sess.get_inputs()[0].name
     output_name = sess.get_outputs()[0].name
 
-    tensor = preprocess_fn(image_bytes)
+    tensor = format_for_model(sess, preprocess_fn(image_bytes))
     raw_output = sess.run([output_name], {input_name: tensor})[0][0]
     probabilities = softmax(raw_output)
 
