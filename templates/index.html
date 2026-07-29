@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crop disease Intelligence | AI Assessment</title>
+    <title>Maize Infection Intelligence | AI Assessment</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
         .spinner { animation: spin-slow 0.9s linear infinite; }
         .fault-card { transition: box-shadow 0.2s ease, border-color 0.2s ease; }
         .fault-card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(6px); }
             to { opacity: 1; transform: translateY(0); }
@@ -52,8 +52,8 @@
                     </svg>
                 </div>
                 <div>
-                    <div class="text-sm font-semibold text-earth-800">Crop disease Intelligence</div>
-                    <div class="text-xs text-slate-500">AI-powered disease diagnosis</div>
+                    <div class="text-sm font-semibold text-earth-800">Maize Infection Intelligence</div>
+                    <div class="text-xs text-slate-500">AI-powered disease &amp; pest diagnosis</div>
                 </div>
             </div>
             <div id="serverStatus" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
@@ -63,12 +63,12 @@
         </div>
     </nav>
 
-    <!-- Global Model Cache Status Notification Banner -->
+    <!-- Global model status notification banner -->
     <div id="modelCacheBanner" class="hidden border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 transition-all">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
             <div class="flex items-center gap-2">
                 <span id="cacheBannerIcon" class="spinner inline-block h-3.5 w-3.5 rounded-full border-2 border-amber-600 border-t-transparent"></span>
-                <span id="cacheBannerText">Caching AI weights & warming up pipeline into memory…</span>
+                <span id="cacheBannerText">Loading AI models into memory…</span>
             </div>
             <button onclick="this.parentElement.parentElement.classList.add('hidden')" class="text-amber-600 hover:text-amber-900 font-bold">&times;</button>
         </div>
@@ -80,12 +80,13 @@
             <div class="max-w-2xl">
                 <p class="text-xs font-semibold uppercase tracking-widest text-brand-600">Agricultural diagnostics</p>
                 <h1 class="font-display mt-2 text-4xl leading-tight text-earth-800 sm:text-5xl">
-                    Identify crop diseases.<br>
+                    Identify maize diseases &amp; pests.<br>
                     <span class="italic text-brand-700">Get actionable solutions.</span>
                 </h1>
                 <p class="mt-4 text-base leading-relaxed text-slate-600">
-                    Upload a photo of affected crops. Our classification model detects likely pests and diseases,
-                    then maps each finding to cultural, biological, and chemical control recommendations.
+                    Upload a photo of a maize plant. We first confirm the image contains maize, then run
+                    parallel disease and pest models and map each finding to cultural, biological, and chemical
+                    control recommendations.
                 </p>
             </div>
         </div>
@@ -114,7 +115,7 @@
                                         </svg>
                                     </div>
                                     <div>
-                                        <p class="text-sm font-medium text-slate-800">Drag & drop your image here</p>
+                                        <p class="text-sm font-medium text-slate-800">Drag &amp; drop your image here</p>
                                         <p class="mt-1 text-xs text-slate-500">or click anywhere to browse files</p>
                                     </div>
                                 </div>
@@ -143,8 +144,8 @@
                         <div class="mt-6 rounded-xl bg-earth-50 p-4">
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tips for best results</p>
                             <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
-                                <li class="flex gap-2"><span class="text-brand-600">•</span> Use clear, well-lit close-up photos</li>
-                                <li class="flex gap-2"><span class="text-brand-600">•</span> Focus on visible pest damage or insects</li>
+                                <li class="flex gap-2"><span class="text-brand-600">•</span> Use clear, well-lit close-up photos of maize</li>
+                                <li class="flex gap-2"><span class="text-brand-600">•</span> Focus on visible disease symptoms or pest damage</li>
                                 <li class="flex gap-2"><span class="text-brand-600">•</span> Avoid heavy blur or extreme shadows</li>
                             </ul>
                         </div>
@@ -164,7 +165,7 @@
                     </div>
                     <h3 class="mt-5 text-lg font-semibold text-earth-800">No assessment yet</h3>
                     <p class="mx-auto mt-2 max-w-sm text-sm text-slate-500">
-                        Upload a crop image on the left and click <strong class="font-medium text-slate-700">Analyze image</strong> to see detected faults and recommended treatments.
+                        Upload a maize image on the left and click <strong class="font-medium text-slate-700">Analyze image</strong> to see detected diseases, pests, and recommended treatments.
                     </p>
                 </div>
 
@@ -174,7 +175,7 @@
                         <div class="spinner h-10 w-10 rounded-full border-[3px] border-brand-100 border-t-brand-600"></div>
                         <div>
                             <p class="font-semibold text-earth-800">Analyzing your image…</p>
-                            <p class="mt-0.5 text-sm text-slate-500">Running model inference and mapping to treatment database</p>
+                            <p class="mt-0.5 text-sm text-slate-500">Confirming maize, then running disease &amp; pest models</p>
                         </div>
                     </div>
                     <div class="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -197,62 +198,72 @@
                     </div>
                 </div>
 
+                <!-- No maize detected (gate rejected) -->
+                <div id="noMaizeState" class="hidden rounded-2xl border border-amber-200 bg-amber-50 p-6">
+                    <div class="flex gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-amber-900">No maize detected</p>
+                            <p class="mt-1 text-sm text-amber-800" id="noMaizeMsg">The gate model did not detect a maize plant in this image. Try a clearer close-up of maize foliage.</p>
+                            <p class="mt-2 text-xs text-amber-700" id="noMaizeConf"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Results -->
                 <div id="resultSection" class="hidden space-y-6">
 
-                    <!-- Primary finding banner -->
+                    <!-- Gate / summary banner -->
                     <div class="overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white shadow-sm">
                         <div class="border-b border-brand-100/80 px-6 py-3">
-                            <span class="text-xs font-semibold uppercase tracking-widest text-brand-700">Primary diagnosis</span>
+                            <span class="text-xs font-semibold uppercase tracking-widest text-brand-700">Assessment summary</span>
                         </div>
                         <div class="px-6 py-5">
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div>
-                                    <h2 class="text-2xl font-semibold capitalize text-earth-800" id="resProblem">—</h2>
-                                    <p class="mt-1 text-sm text-slate-600">
-                                        Class <span class="font-medium" id="resId">—</span>
-                                        &middot; Confidence <span class="font-semibold text-brand-700" id="resConf">—</span>%
-                                    </p>
+                                    <h2 class="text-2xl font-semibold text-earth-800">Maize plant confirmed</h2>
+                                    <p class="mt-1 text-sm text-slate-600" id="gateSummary">Ran disease and pest models on the uploaded image.</p>
                                 </div>
-                                <div class="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-brand-100">
-                                    <div class="text-2xl font-bold text-brand-700" id="faultCount">0</div>
-                                    <div class="text-xs text-slate-500">faults detected</div>
+                                <div id="gateConfBox" class="hidden rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-brand-100">
+                                    <div class="text-2xl font-bold text-brand-700" id="gateConfValue">—</div>
+                                    <div class="text-xs text-slate-500">gate confidence</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- All detected faults with solutions -->
+                    <!-- Parallel disease + pest result cards -->
                     <div>
-                        <div class="mb-4 flex items-center justify-between">
-                            <h3 class="text-base font-semibold text-earth-800">Detected faults &amp; recommended solutions</h3>
-                            <span class="text-xs text-slate-500" id="mappedNote"></span>
-                        </div>
-                        <div id="faultsList" class="space-y-4"></div>
+                        <h3 class="mb-4 text-base font-semibold text-earth-800">Diagnosis &amp; recommended solutions</h3>
+                        <div id="diagnosisGrid" class="grid gap-4 md:grid-cols-2"></div>
                     </div>
                 </div>
             </section>
         </div>
 
-        <!-- Historic Data & Streaming Feed Section -->
+        <!-- Historic Data Feed Section -->
         <section class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-earth-100 pb-4">
                 <div>
                     <h3 class="text-lg font-semibold text-earth-800">Historic Assessments Log</h3>
-                    <p class="text-xs text-slate-500">Real-time live stream of historical diagnosis and diagnostic records</p>
+                    <p class="text-xs text-slate-500">Recent diagnosis records, refreshed automatically</p>
                 </div>
                 <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <span class="relative flex h-2 w-2">
                         <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75"></span>
                         <span class="relative inline-flex h-2 w-2 rounded-full bg-brand-500"></span>
                     </span>
-                    <span id="streamStatusText">Live Feed Connected</span>
+                    <span id="streamStatusText">Live feed</span>
                 </div>
             </div>
 
             <div id="historyFeed" class="mt-6 divide-y divide-slate-100 overflow-hidden">
                 <div id="historyEmptyState" class="py-12 text-center text-sm text-slate-400">
-                    Listening for historical diagnostic data...
+                    No diagnostic records yet.
                 </div>
             </div>
         </section>
@@ -260,7 +271,7 @@
 
     <footer class="mt-12 border-t border-earth-100 bg-white py-6">
         <div class="mx-auto max-w-7xl px-4 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
-            Crop disease Intelligence &mdash; AI classification mapped to IPM treatment recommendations
+            Maize Infection Intelligence &mdash; AI classification mapped to IPM treatment recommendations
         </div>
     </footer>
 
@@ -280,13 +291,14 @@
             loading: $('loading'),
             errorBox: $('errorBox'),
             errorMsg: $('errorMsg'),
+            noMaizeState: $('noMaizeState'),
+            noMaizeMsg: $('noMaizeMsg'),
+            noMaizeConf: $('noMaizeConf'),
             resultSection: $('resultSection'),
-            resProblem: $('resProblem'),
-            resId: $('resId'),
-            resConf: $('resConf'),
-            faultCount: $('faultCount'),
-            faultsList: $('faultsList'),
-            mappedNote: $('mappedNote'),
+            gateSummary: $('gateSummary'),
+            gateConfBox: $('gateConfBox'),
+            gateConfValue: $('gateConfValue'),
+            diagnosisGrid: $('diagnosisGrid'),
             statusDot: $('statusDot'),
             statusText: $('statusText'),
             modelCacheBanner: $('modelCacheBanner'),
@@ -298,7 +310,7 @@
         };
 
         let selectedFile = null;
-        let isModelCached = false;
+        let modelsReady = false;
         let checkHealthInterval = null;
 
         function setServerStatus(ok, text) {
@@ -306,46 +318,56 @@
             els.statusText.textContent = text;
         }
 
-        // Handles model caching status check & notifications
+        // Health check aligned with /api/health: status is always "online";
+        // readiness is derived from the disease + pest model load flags. The
+        // gate model is treated as optional (fail-open) — the app still works
+        // if it is missing or removed later.
         async function checkHealth() {
             try {
                 const res = await fetch('/api/health');
                 const data = await res.json();
-                
-                if (data.model_loaded || data.status === 'ready') {
-                    setServerStatus(true, `Model ready · ${data.categories_count || 0} categories`);
-                    
-                    if (!isModelCached) {
-                        isModelCached = true;
-                        showModelCacheCompletedBanner(data.categories_count);
+
+                const categories =
+                    (data.pest_categories_count || 0) + (data.disease_categories_count || 0);
+
+                // Core diagnosis needs the disease + pest models. Gate is optional.
+                const coreReady = data.disease_model_loaded && data.pest_model_loaded;
+
+                if (data.status === 'online' && coreReady) {
+                    const gateNote = data.gate_model_loaded ? '' : ' · gate model off';
+                    setServerStatus(true, `Models ready · ${categories} categories${gateNote}`);
+                    if (!modelsReady) {
+                        modelsReady = true;
+                        showModelsReadyBanner(categories, data.gate_model_loaded);
                     }
                     if (checkHealthInterval) clearInterval(checkHealthInterval);
-                } else if (data.status === 'caching' || data.is_caching) {
-                    setServerStatus(false, 'Caching model weights…');
-                    showModelCachingBanner('Model weights are currently caching into memory. Please wait…');
+                } else if (data.status === 'online') {
+                    setServerStatus(false, 'Loading models…');
+                    showModelLoadingBanner('AI models are still loading into memory. Please wait…');
                 } else {
-                    setServerStatus(false, data.error || 'Model initializing…');
-                    showModelCachingBanner('Initializing model pipeline…');
+                    setServerStatus(false, 'Server initializing…');
+                    showModelLoadingBanner('Initializing model pipeline…');
                 }
             } catch {
                 setServerStatus(false, 'Server offline');
             }
         }
 
-        function showModelCachingBanner(message) {
+        function showModelLoadingBanner(message) {
             els.modelCacheBanner.classList.remove('hidden');
             els.cacheBannerText.textContent = message;
         }
 
-        function showModelCacheCompletedBanner(categoriesCount) {
+        function showModelsReadyBanner(categories, gateLoaded) {
             els.modelCacheBanner.classList.remove('hidden', 'bg-amber-50', 'border-amber-200', 'text-amber-800');
             els.modelCacheBanner.classList.add('bg-brand-50', 'border-brand-200', 'text-brand-800');
-            
+
             els.cacheBannerIcon.className = 'flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-white text-[10px] font-bold';
             els.cacheBannerIcon.textContent = '✓';
-            
-            els.cacheBannerText.textContent = `Model caching complete! Model is warm and ready with ${categoriesCount || ''} categories available.`;
-            
+
+            const gateNote = gateLoaded ? '' : ' (gate model not loaded — every image will be diagnosed directly)';
+            els.cacheBannerText.textContent = `Models ready with ${categories} categories available${gateNote}.`;
+
             setTimeout(() => {
                 els.modelCacheBanner.classList.add('hidden');
             }, 6000);
@@ -355,6 +377,7 @@
             els.errorMsg.textContent = msg || 'Unknown error';
             els.errorBox.classList.remove('hidden');
             els.emptyState.classList.add('hidden');
+            els.noMaizeState.classList.add('hidden');
             els.resultSection.classList.add('hidden');
         }
 
@@ -367,6 +390,7 @@
             els.loading.classList.toggle('hidden', !on);
             if (on) {
                 els.emptyState.classList.add('hidden');
+                els.noMaizeState.classList.add('hidden');
                 els.resultSection.classList.add('hidden');
                 clearError();
             }
@@ -376,6 +400,7 @@
             clearError();
             showLoading(false);
             els.resultSection.classList.add('hidden');
+            els.noMaizeState.classList.add('hidden');
             els.emptyState.classList.remove('hidden');
             selectedFile = null;
             els.fileInput.value = '';
@@ -383,7 +408,7 @@
             els.uploadPlaceholder.classList.remove('hidden');
             els.previewWrap.classList.add('hidden');
             els.analyzeBtn.disabled = true;
-            els.faultsList.innerHTML = '';
+            els.diagnosisGrid.innerHTML = '';
         }
 
         function wireFile(file) {
@@ -414,33 +439,36 @@
                 </div>`;
         }
 
-        function renderFaultCard(fault, rank, isPrimary) {
+        // Renders one diagnosis card (disease OR pest) from the flat shape
+        // returned by /predict: { problem, confidence, is_healthy,
+        // cultural_biological, chemical_direct } (with an optional nested
+        // `solutions` object also supported for forward compatibility).
+        function renderDiagnosisCard(title, kind, obj) {
             const card = document.createElement('article');
-            card.className = `fault-card rounded-2xl border bg-white shadow-sm ${isPrimary ? 'border-brand-200 ring-1 ring-brand-100' : 'border-slate-200'}`;
+            const healthy = !!obj.is_healthy;
+            card.className = `fault-card rounded-2xl border bg-white shadow-sm ${healthy ? 'border-brand-200 ring-1 ring-brand-100' : 'border-amber-200 ring-1 ring-amber-100'}`;
 
-            const badge = isPrimary
-                ? '<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">Top match</span>'
-                : `<span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">#${rank}</span>`;
+            const statusBadge = healthy
+                ? '<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">Healthy</span>'
+                : '<span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Issue detected</span>';
 
-            const mappedBadge = fault.mapped
-                ? ''
-                : '<span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">Unmapped class</span>';
-
-            const cultural = fault.solutions?.cultural_biological || fault.cultural_biological || 'No recommendation available.';
-            const chemical = fault.solutions?.chemical_direct || fault.chemical_direct || 'No recommendation available.';
+            const cultural = obj.solutions?.cultural_biological || obj.cultural_biological || 'No recommendation available.';
+            const chemical = obj.solutions?.chemical_direct || obj.chemical_direct || 'No recommendation available.';
+            const pct = Number(obj.confidence || 0);
+            const classId = (obj.class_id ?? null);
 
             card.innerHTML = `
                 <div class="border-b border-slate-100 px-5 py-4">
                     <div class="flex flex-wrap items-center gap-2">
-                        ${badge}
-                        ${mappedBadge}
+                        <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 capitalize">${kind}</span>
+                        ${statusBadge}
                     </div>
-                    <h4 class="mt-2 text-lg font-semibold capitalize text-earth-800">${fault.problem || 'Unknown'}</h4>
-                    <p class="text-xs text-slate-500">Class ID ${fault.class_id}</p>
-                    ${confidenceBar(Number(fault.confidence || 0))}
+                    <h4 class="mt-2 text-lg font-semibold capitalize text-earth-800">${obj.problem || 'Unknown'}</h4>
+                    ${classId !== null ? `<p class="text-xs text-slate-500">Class ID ${classId}</p>` : ''}
+                    ${confidenceBar(pct)}
                 </div>
-                <div class="grid gap-0 sm:grid-cols-2">
-                    <div class="border-b border-slate-100 p-5 sm:border-b-0 sm:border-r">
+                <div class="divide-y divide-slate-100">
+                    <div class="p-5">
                         <div class="flex items-center gap-2">
                             <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -467,42 +495,79 @@
             return card;
         }
 
-        function renderResults(data) {
-            const faults = data.detected_faults?.length ? data.detected_faults : (data.top_predictions || []);
-            const primary = data.prediction || faults[0] || {};
-
-            els.resProblem.textContent = primary.problem || 'Unknown';
-            els.resId.textContent = primary.class_id ?? '—';
-            els.resConf.textContent = Number(primary.confidence ?? data.confidence ?? 0).toFixed(1);
-            els.faultCount.textContent = faults.length;
-
-            const mapped = data.categories_mapped ?? faults.filter(f => f.mapped).length;
-            els.mappedNote.textContent = `${mapped} of ${faults.length} mapped to categories.json`;
-
-            els.faultsList.innerHTML = '';
-            faults.forEach((fault, i) => {
-                els.faultsList.appendChild(renderFaultCard(fault, i + 1, i === 0));
+        // Given the /predict payload, extract the disease + pest results.
+        // Prefers the top-level `disease`/`pest` objects; falls back to the
+        // flat `detected_faults` array by `type` if those are absent.
+        function extractDiagnoses(data) {
+            const byType = {};
+            (data.detected_faults || []).forEach((f) => {
+                if (f && f.type) byType[f.type] = f;
             });
+            return {
+                disease: data.disease || byType.disease || null,
+                pest: data.pest || byType.pest || null,
+            };
+        }
+
+        function showNoMaize(data) {
+            els.emptyState.classList.add('hidden');
+            els.resultSection.classList.add('hidden');
+            els.noMaizeState.classList.remove('hidden');
+            els.noMaizeMsg.textContent = data.message ||
+                'The gate model did not detect a maize plant in this image. Try a clearer close-up of maize foliage.';
+            if (typeof data.gate_confidence === 'number') {
+                els.noMaizeConf.textContent = `Gate confidence: ${Number(data.gate_confidence).toFixed(1)}%`;
+            } else {
+                els.noMaizeConf.textContent = '';
+            }
+        }
+
+        function renderResults(data) {
+            // Fail-open: if `maize_detected` is missing entirely (e.g. the gate
+            // model gets removed later), treat the image as maize and render
+            // the diagnosis rather than breaking.
+            if (data.maize_detected === false) {
+                showNoMaize(data);
+                return;
+            }
+
+            const { disease, pest } = extractDiagnoses(data);
+
+            if (typeof data.gate_confidence === 'number') {
+                els.gateConfBox.classList.remove('hidden');
+                els.gateConfValue.textContent = `${Number(data.gate_confidence).toFixed(0)}%`;
+                els.gateSummary.textContent = 'Image confirmed as maize. Ran disease and pest models below.';
+            } else {
+                els.gateConfBox.classList.add('hidden');
+                els.gateSummary.textContent = 'Ran disease and pest models on the uploaded image.';
+            }
+
+            els.diagnosisGrid.innerHTML = '';
+            if (disease) els.diagnosisGrid.appendChild(renderDiagnosisCard('Disease', 'disease', disease));
+            if (pest) els.diagnosisGrid.appendChild(renderDiagnosisCard('Pest', 'pest', pest));
+
+            if (!disease && !pest) {
+                const note = document.createElement('p');
+                note.className = 'text-sm text-slate-500';
+                note.textContent = 'No diagnosis fields were returned by the server.';
+                els.diagnosisGrid.appendChild(note);
+            }
 
             els.emptyState.classList.add('hidden');
+            els.noMaizeState.classList.add('hidden');
             els.resultSection.classList.remove('hidden');
         }
 
-        // Historic Data Stream Handler
-        function appendHistoryItem(item) {
-            if (els.historyEmptyState) {
-                els.historyEmptyState.remove();
-            }
-
-            const el = document.createElement('div');
-            el.className = 'animate-fade-in py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4';
-
-            const prob = item.problem || item.prediction?.problem || 'Unspecified Diagnostic';
-            const conf = Number(item.confidence || item.prediction?.confidence || 0).toFixed(1);
+        // ---- History (plain GET /api/history, polled) ------------------------
+        function historyItemMarkup(item) {
+            const prob = item.problem || 'Unspecified diagnostic';
+            const conf = Number(item.confidence || 0).toFixed(1);
             const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
-            const id = item.id || item.class_id || '#';
+            const id = item.id ?? '#';
+            const type = item.detection_type || 'result';
+            const source = item.source || '';
 
-            el.innerHTML = `
+            return `
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 font-bold text-xs ring-1 ring-brand-200">
                         ${conf}%
@@ -510,61 +575,44 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <h4 class="font-semibold text-slate-800 capitalize">${prob}</h4>
-                            <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500">ID ${id}</span>
+                            <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500 capitalize">${type}</span>
                         </div>
-                        <p class="text-xs text-slate-500">${timestamp}</p>
+                        <p class="text-xs text-slate-500">#${id} · ${timestamp}</p>
                     </div>
                 </div>
-                <div class="text-xs text-slate-600 max-w-xs truncate">
-                    ${item.solutions?.cultural_biological || item.cultural_biological || 'Treatment cataloged'}
-                </div>
-            `;
-
-            els.historyFeed.prepend(el);
+                <div class="text-xs text-slate-500">${source}</div>`;
         }
 
-        function initHistoryStream() {
-            if (!window.EventSource) {
-                els.streamStatusText.textContent = 'Streaming Not Supported';
-                fetchHistoryFallback();
+        function renderHistory(history) {
+            if (!Array.isArray(history) || history.length === 0) {
+                els.historyFeed.innerHTML =
+                    '<div id="historyEmptyState" class="py-12 text-center text-sm text-slate-400">No diagnostic records yet.</div>';
+                els.historyEmptyState = $('historyEmptyState');
                 return;
             }
-
-            const source = new EventSource('/api/history/stream');
-
-            source.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (Array.isArray(data)) {
-                        data.forEach(appendHistoryItem);
-                    } else {
-                        appendHistoryItem(data);
-                    }
-                } catch (err) {
-                    console.error('Failed to parse history stream item', err);
-                }
-            };
-
-            source.onerror = () => {
-                els.streamStatusText.textContent = 'Reconnecting feed…';
-                fetchHistoryFallback();
-            };
-
-            source.onopen = () => {
-                els.streamStatusText.textContent = 'Live Feed Connected';
-            };
+            els.historyFeed.innerHTML = '';
+            history.forEach((item) => {
+                const el = document.createElement('div');
+                el.className = 'animate-fade-in py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4';
+                el.innerHTML = historyItemMarkup(item);
+                els.historyFeed.appendChild(el);
+            });
         }
 
-        async function fetchHistoryFallback() {
+        async function fetchHistory() {
             try {
                 const res = await fetch('/api/history');
-                if (!res.ok) return;
-                const history = await res.json();
-                if (Array.isArray(history)) {
-                    history.forEach(appendHistoryItem);
+                if (!res.ok) {
+                    els.streamStatusText.textContent = 'Feed unavailable';
+                    return;
                 }
-            } catch (e) {
-                // Ignore fallback failures silently
+                const data = await res.json();
+                // /api/history returns { success, history: [...] }.
+                const history = Array.isArray(data) ? data : (data.history || []);
+                renderHistory(history);
+                els.streamStatusText.textContent = 'Live feed';
+            } catch {
+                els.streamStatusText.textContent = 'Feed unavailable';
             }
         }
 
@@ -623,14 +671,9 @@
                 }
 
                 renderResults(data);
-                
-                // Add the current result to history log feed immediately
-                if (data.prediction) {
-                    appendHistoryItem({
-                        ...data.prediction,
-                        timestamp: new Date().toISOString()
-                    });
-                }
+
+                // Refresh the history feed from the server (source of truth).
+                fetchHistory();
             } catch {
                 showLoading(false);
                 els.analyzeBtn.disabled = false;
@@ -638,11 +681,12 @@
             }
         });
 
-        // Initialize health checks and streaming log feed
+        // Initialize health checks and history feed
         checkHealth();
         checkHealthInterval = setInterval(checkHealth, 4000);
         resetUI();
-        initHistoryStream();
+        fetchHistory();
+        setInterval(fetchHistory, 8000);
     </script>
 </body>
 </html>
