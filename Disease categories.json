@@ -1,0 +1,22 @@
+{
+  "0": {
+    "problem": "healthy",
+    "cultural_biological": "No disease detected. Continue routine field monitoring and good agronomic practices.",
+    "chemical_direct": "No treatment needed."
+  },
+  "1": {
+    "problem": "Leaf Blight",
+    "cultural_biological": "Remove and destroy infected leaves/debris, rotate crops, avoid overhead irrigation, use resistant varieties where possible.",
+    "chemical_direct": "Apply a recommended fungicide (e.g. mancozeb or azoxystrobin-based product) per label instructions if infection is severe."
+  },
+  "2": {
+    "problem": "Leaf Spot",
+    "cultural_biological": "Practice crop rotation, remove infected residue after harvest, ensure adequate plant spacing for airflow.",
+    "chemical_direct": "Apply a labeled foliar fungicide at early symptom onset; repeat per product interval if conditions favor spread."
+  },
+  "3": {
+    "problem": "Streak Virus",
+    "cultural_biological": "Control leafhopper vectors, remove and destroy infected plants promptly, plant resistant/tolerant varieties.",
+    "chemical_direct": "No direct chemical cure for the virus itself; apply insecticide to manage the leafhopper vector if present."
+  }
+}
