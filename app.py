@@ -3,13 +3,15 @@ import io
 import json
 import sqlite3
 import urllib.request
+import uuid
+import time
 import numpy as np
 from PIL import Image
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 import onnxruntime as ort
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 
 # =====================================================================
@@ -31,6 +33,7 @@ MODEL_LOCAL_PATHS = {
 
 DB_PATH = "database.db"
 IMAGE_SIZE = (224, 224)  # same input shape for all three models
+UPLOAD_FOLDER = "static/images"
 
 CONFIDENCE_THRESHOLD = 5.0  # kept from original code (currently informational only)
 
@@ -81,14 +84,17 @@ def init_db():
             problem TEXT,
             confidence REAL,
             cultural_biological TEXT,
-            chemical_direct TEXT
+            chemical_direct TEXT,
+            image_path TEXT
         )
     ''')
-    # Migrate older DBs that predate the detection_type column
+    # Migrate older DBs that predate the detection_type and image_path columns
     cursor.execute("PRAGMA table_info(predictions)")
     existing_cols = {row[1] for row in cursor.fetchall()}
     if "detection_type" not in existing_cols:
         cursor.execute("ALTER TABLE predictions ADD COLUMN detection_type TEXT")
+    if "image_path" not in existing_cols:
+        cursor.execute("ALTER TABLE predictions ADD COLUMN image_path TEXT")
     conn.commit()
     conn.close()
 
@@ -233,7 +239,27 @@ def sigmoid(x):
 
 
 # =====================================================================
-# 5. INFERENCE HELPERS
+# 5. IMAGE SAVING
+# =====================================================================
+def save_image(image_bytes, source="ESP32"):
+    """Save image bytes to static/images directory and return the relative path."""
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # Generate unique filename
+    filename = f"{source}_{uuid.uuid4().hex[:8]}_{int(time.time())}.jpg"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    
+    # Save the image
+    with open(filepath, 'wb') as f:
+        f.write(image_bytes)
+    
+    # Return relative path for serving via Flask
+    return f"/static/images/{filename}"
+
+
+# =====================================================================
+# 6. INFERENCE HELPERS
 # =====================================================================
 def run_gate_model(image_bytes):
     """Runs the 'is maize detected?' gate model.
@@ -300,14 +326,14 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
     }
 
 
-def log_prediction(source, detection_type, result):
+def log_prediction(source, detection_type, result, image_path=None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO predictions (source, detection_type, problem, confidence, cultural_biological, chemical_direct)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO predictions (source, detection_type, problem, confidence, cultural_biological, chemical_direct, image_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (source, detection_type, result["problem"], result["confidence"],
-          result["cultural_biological"], result["chemical_direct"]))
+          result["cultural_biological"], result["chemical_direct"], image_path))
     conn.commit()
     conn.close()
 
@@ -355,17 +381,24 @@ def predict():
     """Main endpoint for web app and ESP32 uploads.
 
     Flow (matches the block diagram):
-      1. Run gate model -> is maize detected?
+      1. Save image if from ESP32
+      2. Run gate model -> is maize detected?
          - No  -> return early with a "no maize / healthy" style response.
          - Yes -> run disease model AND pest model, return both results.
     """
     try:
+        image_path = None
+        
         if "file" in request.files:
             file_bytes = request.files["file"].read()
             source = request.form.get("source", "Web Client")
+            # Also save web client images
+            image_path = save_image(file_bytes, "WebClient")
         else:
             file_bytes = request.data
             source = "ESP32"
+            # Save ESP32 images
+            image_path = save_image(file_bytes, "ESP32")
 
         if not file_bytes:
             return jsonify({"success": False, "error": "No image data received"}), 400
@@ -381,13 +414,14 @@ def predict():
                 "cultural_biological": "No action needed — no maize plant detected in image.",
                 "chemical_direct": "No action needed — no maize plant detected in image.",
             }
-            log_prediction(source, "gate_reject", not_maize_result)
+            log_prediction(source, "gate_reject", not_maize_result, image_path)
             return jsonify({
                 "success": True,
                 "source": source,
                 "maize_detected": False,
                 "gate_confidence": gate_confidence,
                 "message": "No maize detected in the image.",
+                "image_path": image_path,
             })
 
         # --- Step 2: maize detected -> run disease model + pest model ----------
@@ -404,8 +438,8 @@ def predict():
             preprocess_fn=preprocess_imagenet,
         )
 
-        log_prediction(source, "disease", disease_result)
-        log_prediction(source, "pest", pest_result)
+        log_prediction(source, "disease", disease_result, image_path)
+        log_prediction(source, "pest", pest_result, image_path)
 
         detected_faults = []
         for kind, result in (("disease", disease_result), ("pest", pest_result)):
@@ -424,6 +458,7 @@ def predict():
             "source": source,
             "maize_detected": True,
             "gate_confidence": gate_confidence,
+            "image_path": image_path,
             "disease": {
                 "problem": disease_result["problem"],
                 "confidence": disease_result["confidence"],
@@ -455,7 +490,7 @@ def get_latest():
     cursor = conn.cursor()
     cursor.execute(
         "SELECT id, timestamp, source, detection_type, problem, confidence, "
-        "cultural_biological, chemical_direct FROM predictions ORDER BY id DESC LIMIT 1"
+        "cultural_biological, chemical_direct, image_path FROM predictions ORDER BY id DESC LIMIT 1"
     )
     row = cursor.fetchone()
     conn.close()
@@ -474,17 +509,18 @@ def get_latest():
         "solutions": {
             "cultural_biological": row[6],
             "chemical_direct": row[7]
-        }
+        },
+        "image_path": row[8]
     })
 
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
-    """Returns historical logs"""
+    """Returns historical logs with image paths"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, timestamp, source, detection_type, problem, confidence "
+        "SELECT id, timestamp, source, detection_type, problem, confidence, image_path "
         "FROM predictions ORDER BY id DESC LIMIT 20"
     )
     rows = cursor.fetchall()
@@ -492,7 +528,7 @@ def get_history():
 
     history = [
         {"id": r[0], "timestamp": r[1], "source": r[2], "detection_type": r[3],
-         "problem": r[4], "confidence": r[5]}
+         "problem": r[4], "confidence": r[5], "image_path": r[6]}
         for r in rows
     ]
     return jsonify({"success": True, "history": history})
