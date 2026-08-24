@@ -5,14 +5,72 @@ import sqlite3
 import urllib.request
 import uuid
 import time
+import logging
+import traceback
 import numpy as np
 from PIL import Image
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, g
 from flask_cors import CORS
 import onnxruntime as ort
 
+# =====================================================================
+# LOGGING SETUP
+# =====================================================================
+# Everything of interest goes to stdout so it shows up in Render's log
+# stream. LOG_LEVEL can be overridden via env var without touching code
+# (e.g. set LOG_LEVEL=DEBUG on Render if you need even more detail).
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("maize-app")
+
+# Quiet down noisy third-party loggers a little so our own lines aren't
+# buried, but still let warnings/errors from them through.
+logging.getLogger("PIL").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
+
+
+# =====================================================================
+# REQUEST / RESPONSE LOGGING (applies to every route automatically)
+# =====================================================================
+@app.before_request
+def _log_request_start():
+    g._start_time = time.time()
+    try:
+        content_length = request.content_length or 0
+    except Exception:
+        content_length = "?"
+    logger.info(
+        "--> %s %s | remote=%s | content-type=%s | content-length=%s",
+        request.method, request.path, request.remote_addr,
+        request.content_type, content_length,
+    )
+
+
+@app.after_request
+def _log_request_end(response):
+    duration_ms = (time.time() - getattr(g, "_start_time", time.time())) * 1000
+    logger.info(
+        "<-- %s %s | status=%s | %.1fms",
+        request.method, request.path, response.status_code, duration_ms,
+    )
+    return response
+
+
+@app.errorhandler(Exception)
+def _log_unhandled_exception(e):
+    # Catches anything that slips past a route's own try/except so nothing
+    # fails silently or with just a bare 500 and no trace in the logs.
+    logger.error("UNHANDLED EXCEPTION on %s %s", request.method, request.path)
+    logger.error(traceback.format_exc())
+    return jsonify({"success": False, "error": f"Internal server error: {e}"}), 500
 
 # =====================================================================
 # CONFIGURATION
@@ -73,12 +131,20 @@ DISEASE_CATEGORY_MAP = {}   # keyed by str(class_id) -> {"problem", "cultural_bi
 # 1. DATABASE INITIALIZATION
 # =====================================================================
 def init_db():
+    logger.info("Initializing database at '%s' (exists=%s)", DB_PATH, os.path.exists(DB_PATH))
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     # ========== FIX: create predictions table unconditionally ==========
     # This table is written to by log_prediction() (gate reject case) and
-    # read by /api/latest. It must always exist, even on a fresh DB.
+    # read by /api/latest. It must always exist on a fresh DB, not only
+    # when an old DB happens to already have it — the previous code only
+    # ever created it inside the migration branch, so on a brand-new
+    # database (e.g. every redeploy on Render's ephemeral disk) the very
+    # first "no maize detected" prediction raised:
+    #   sqlite3.OperationalError: no such table: predictions
+    # which the outer try/except in /predict turned into a 500, and which
+    # also broke /api/latest since it queries this table directly.
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS predictions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,6 +158,7 @@ def init_db():
             image_path TEXT
         )
     ''')
+    logger.info("'predictions' table ready")
 
     # Create new table for combined disease + pest results per image
     cursor.execute('''
@@ -113,44 +180,54 @@ def init_db():
             gate_confidence REAL
         )
     ''')
+    logger.info("'assessments' table ready")
 
     # Migrate from old predictions table if it exists (and has data)
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'")
     old_table_exists = cursor.fetchone() is not None
+    logger.debug("Migration check: old predictions table present=%s", old_table_exists)
 
     if old_table_exists:
         # Check if we've already migrated
         cursor.execute("SELECT COUNT(*) FROM assessments")
         if cursor.fetchone()[0] == 0:
-            print("Migrating data from old predictions table to new assessments table...")
-            cursor.execute('''
-                SELECT timestamp, source, image_path,
-                       MAX(CASE WHEN detection_type = 'disease' THEN problem END) as disease_problem,
-                       MAX(CASE WHEN detection_type = 'disease' THEN confidence END) as disease_confidence,
-                       MAX(CASE WHEN detection_type = 'disease' THEN cultural_biological END) as disease_cultural_biological,
-                       MAX(CASE WHEN detection_type = 'disease' THEN chemical_direct END) as disease_chemical_direct,
-                       MAX(CASE WHEN detection_type = 'pest' THEN problem END) as pest_problem,
-                       MAX(CASE WHEN detection_type = 'pest' THEN confidence END) as pest_confidence,
-                       MAX(CASE WHEN detection_type = 'pest' THEN cultural_biological END) as pest_cultural_biological,
-                       MAX(CASE WHEN detection_type = 'pest' THEN chemical_direct END) as pest_chemical_direct
-                FROM predictions
-                WHERE image_path IS NOT NULL AND image_path != ''
-                GROUP BY image_path, timestamp, source
-            ''')
-            old_data = cursor.fetchall()
-
-            for row in old_data:
+            # Check the predictions table actually has rows before attempting
+            # a migration — on a brand-new DB it was just created above and
+            # is empty, so this is a fast no-op rather than an error.
+            cursor.execute("SELECT COUNT(*) FROM predictions")
+            old_row_count = cursor.fetchone()[0]
+            logger.info("Legacy predictions table has %d row(s)", old_row_count)
+            if old_row_count > 0:
+                logger.info("Migrating data from old predictions table to new assessments table...")
                 cursor.execute('''
-                    INSERT INTO assessments (timestamp, source, image_path,
-                                            disease_problem, disease_confidence, disease_cultural_biological, disease_chemical_direct,
-                                            pest_problem, pest_confidence, pest_cultural_biological, pest_chemical_direct)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', row)
+                    SELECT timestamp, source, image_path,
+                           MAX(CASE WHEN detection_type = 'disease' THEN problem END) as disease_problem,
+                           MAX(CASE WHEN detection_type = 'disease' THEN confidence END) as disease_confidence,
+                           MAX(CASE WHEN detection_type = 'disease' THEN cultural_biological END) as disease_cultural_biological,
+                           MAX(CASE WHEN detection_type = 'disease' THEN chemical_direct END) as disease_chemical_direct,
+                           MAX(CASE WHEN detection_type = 'pest' THEN problem END) as pest_problem,
+                           MAX(CASE WHEN detection_type = 'pest' THEN confidence END) as pest_confidence,
+                           MAX(CASE WHEN detection_type = 'pest' THEN cultural_biological END) as pest_cultural_biological,
+                           MAX(CASE WHEN detection_type = 'pest' THEN chemical_direct END) as pest_chemical_direct
+                    FROM predictions
+                    WHERE image_path IS NOT NULL AND image_path != ''
+                    GROUP BY image_path, timestamp, source
+                ''')
+                old_data = cursor.fetchall()
 
-            conn.commit()
-            print(f"Migrated {len(old_data)} records to new assessments table")
+                for row in old_data:
+                    cursor.execute('''
+                        INSERT INTO assessments (timestamp, source, image_path,
+                                                disease_problem, disease_confidence, disease_cultural_biological, disease_chemical_direct,
+                                                pest_problem, pest_confidence, pest_cultural_biological, pest_chemical_direct)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', row)
+
+                conn.commit()
+                logger.info("Migrated %d record(s) to new assessments table", len(old_data))
 
     conn.close()
+    logger.info("Database initialization complete")
 
 
 # =====================================================================
@@ -163,20 +240,26 @@ def _load_json_map(filename):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            print(f"Successfully loaded {len(data)} entries from {filename}")
+            logger.info("Loaded %d entries from %s", len(data), filename)
             return data
         except Exception as e:
-            print(f"Warning: Failed to load {filename}: {e}")
+            logger.error("Failed to load %s: %s", filename, e)
+            logger.error(traceback.format_exc())
             return {}
     else:
-        print(f"Warning: {filename} not found at {path}")
+        logger.warning("%s not found at %s (category names/solutions will fall back to defaults)", filename, path)
         return {}
 
 
 def load_categories():
     global PEST_CATEGORY_MAP, DISEASE_CATEGORY_MAP
+    logger.info("Loading category mapping files...")
     PEST_CATEGORY_MAP = _load_json_map("categories.json")
     DISEASE_CATEGORY_MAP = _load_json_map("disease_categories.json")
+    logger.info(
+        "Category maps loaded: pest=%d entries, disease=%d entries",
+        len(PEST_CATEGORY_MAP), len(DISEASE_CATEGORY_MAP),
+    )
 
 
 # =====================================================================
@@ -189,9 +272,11 @@ def _get_remote_content_length(url):
         req = urllib.request.Request(url, method="HEAD")
         with urllib.request.urlopen(req, timeout=10) as resp:
             size = resp.headers.get("Content-Length")
-            return int(size) if size is not None else None
+            size_int = int(size) if size is not None else None
+            logger.debug("HEAD %s -> Content-Length=%s", url, size_int)
+            return size_int
     except Exception as e:
-        print(f"Could not check remote size for {url}: {e}")
+        logger.warning("Could not check remote size for %s: %s", url, e)
         return None
 
 
@@ -200,6 +285,7 @@ def load_onnx_model(model_key):
     for one of "gate", "disease", "pest"."""
     global sessions
     if sessions.get(model_key) is not None:
+        logger.debug("'%s' model already loaded, reusing cached session", model_key)
         return sessions[model_key]
 
     url = MODEL_URLS[model_key]
@@ -213,30 +299,68 @@ def load_onnx_model(model_key):
         not local_exists
         or (remote_size is not None and remote_size != local_size)
     )
+    logger.info(
+        "'%s' model check: local_exists=%s local_size=%s remote_size=%s -> needs_download=%s",
+        model_key, local_exists, local_size, remote_size, needs_download,
+    )
 
     if needs_download:
-        print(f"Downloading '{model_key}' ONNX model from Hugging Face: {url} "
-              f"(local_size={local_size}, remote_size={remote_size}) ...")
-        urllib.request.urlretrieve(url, local_path)
-        print(f"'{model_key}' model download complete.")
+        logger.info("Downloading '%s' ONNX model from %s ...", model_key, url)
+        dl_start = time.time()
+        try:
+            urllib.request.urlretrieve(url, local_path)
+        except Exception as e:
+            logger.error("Download FAILED for '%s' model from %s: %s", model_key, url, e)
+            logger.error(traceback.format_exc())
+            raise
+        dl_seconds = time.time() - dl_start
+        downloaded_size = os.path.getsize(local_path) if os.path.exists(local_path) else None
+        logger.info(
+            "'%s' model download complete in %.1fs (size=%s bytes)",
+            model_key, dl_seconds, downloaded_size,
+        )
     else:
-        print(f"Using cached '{model_key}' model at {local_path} "
-              f"(size={local_size}, remote reports same size)")
+        logger.info(
+            "Using cached '%s' model at %s (size=%s, remote reports same size)",
+            model_key, local_path, local_size,
+        )
 
-    print(f"Loading ONNX Runtime Session for '{model_key}'...")
-    session = ort.InferenceSession(local_path, providers=['CPUExecutionProvider'])
+    logger.info("Loading ONNX Runtime Session for '%s' from %s ...", model_key, local_path)
+    load_start = time.time()
+    try:
+        session = ort.InferenceSession(local_path, providers=['CPUExecutionProvider'])
+    except Exception as e:
+        logger.error("Failed to create ONNX InferenceSession for '%s': %s", model_key, e)
+        logger.error(traceback.format_exc())
+        raise
+    load_seconds = time.time() - load_start
+
+    input_meta = session.get_inputs()[0]
+    output_meta = session.get_outputs()[0]
+    logger.info(
+        "'%s' ONNX session ready in %.2fs | input='%s' shape=%s dtype=%s | output='%s' shape=%s",
+        model_key, load_seconds, input_meta.name, input_meta.shape, input_meta.type,
+        output_meta.name, output_meta.shape,
+    )
+
     sessions[model_key] = session
-    print(f"'{model_key}' ONNX Session successfully initialized.")
     return session
 
 
 def load_all_models():
     """Eagerly load all three models at startup so the first request isn't slow."""
+    logger.info("Preloading all models at startup...")
     for key in ("gate", "disease", "pest"):
         try:
             load_onnx_model(key)
         except Exception as e:
-            print(f"Warning: failed to preload '{key}' model at startup: {e}")
+            logger.error(
+                "Failed to preload '%s' model at startup: %s "
+                "(requests needing this model will fail until it loads successfully)",
+                key, e,
+            )
+    loaded = {k: (v is not None) for k, v in sessions.items()}
+    logger.info("Startup model preload finished. Loaded status: %s", loaded)
 
 
 # =====================================================================
@@ -305,8 +429,15 @@ def save_image(image_bytes, source="ESP32"):
     filepath = os.path.join(UPLOAD_FOLDER, filename)
 
     # Save the image
-    with open(filepath, 'wb') as f:
-        f.write(image_bytes)
+    try:
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+    except Exception as e:
+        logger.error("Failed to save image to %s: %s", filepath, e)
+        logger.error(traceback.format_exc())
+        raise
+
+    logger.info("Saved image: %s (%d bytes, source=%s)", filepath, len(image_bytes), source)
 
     # Return relative path for serving via Flask
     return f"/static/images/{filename}"
@@ -326,17 +457,25 @@ def run_gate_model(image_bytes):
         else preprocess_imagenet(image_bytes)
     tensor = format_for_model(sess, hwc)
 
+    infer_start = time.time()
     raw = sess.run([output_name], {input_name: tensor})[0][0]
+    infer_ms = (time.time() - infer_start) * 1000
+    logger.debug("Gate model raw output: %s (inference %.1fms)", raw, infer_ms)
 
     if GATE_OUTPUT_MODE == "sigmoid_1class":
         maize_prob = float(sigmoid(raw)[0]) if hasattr(raw, "__len__") else float(sigmoid(raw))
         is_maize = maize_prob * 100 >= GATE_CONFIDENCE_THRESHOLD
+        logger.info("Gate result (sigmoid mode): is_maize=%s confidence=%.2f%%", is_maize, maize_prob * 100)
         return is_maize, round(maize_prob * 100, 2)
 
     # default: softmax_2class
     probs = softmax(raw)
     maize_prob = float(probs[GATE_MAIZE_INDEX]) * 100
     is_maize = maize_prob >= GATE_CONFIDENCE_THRESHOLD
+    logger.info(
+        "Gate result (softmax mode): is_maize=%s confidence=%.2f%% (all probs=%s, threshold=%s%%)",
+        is_maize, maize_prob, np.round(probs, 4).tolist(), GATE_CONFIDENCE_THRESHOLD,
+    )
     return is_maize, round(maize_prob, 2)
 
 
@@ -352,13 +491,20 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
     output_name = sess.get_outputs()[0].name
 
     tensor = format_for_model(sess, preprocess_fn(image_bytes))
+    infer_start = time.time()
     raw_output = sess.run([output_name], {input_name: tensor})[0][0]
+    infer_ms = (time.time() - infer_start) * 1000
     probabilities = softmax(raw_output)
 
     top1_idx = int(np.argmax(probabilities))
     top1_conf = float(probabilities[top1_idx]) * 100
 
     category_entry = category_map.get(str(top1_idx), {})
+    if not category_entry:
+        logger.warning(
+            "'%s' model: class_id %d not found in category map (%d entries loaded) — using fallback text",
+            model_key, top1_idx, len(category_map),
+        )
 
     if class_name_lookup and 0 <= top1_idx < len(class_name_lookup):
         default_name = class_name_lookup[top1_idx]
@@ -369,6 +515,12 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
     cultural = category_entry.get("cultural_biological", "Maintain proper crop spacing and weed control.")
     chemical = category_entry.get("chemical_direct", "Apply targeted bio-pesticide if threshold exceeded.")
     is_healthy = problem_name.strip().lower() == HEALTHY_LABEL
+
+    logger.info(
+        "'%s' classifier result: class_id=%d problem='%s' confidence=%.2f%% is_healthy=%s (inference %.1fms)",
+        model_key, top1_idx, problem_name, top1_conf, is_healthy, infer_ms,
+    )
+    logger.debug("'%s' full probability vector: %s", model_key, np.round(probabilities, 4).tolist())
 
     return {
         "class_id": top1_idx,
@@ -382,40 +534,70 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
 
 def log_assessment(source, disease_result, pest_result, image_path=None, gate_confidence=None):
     """Log combined disease + pest assessment as a single record."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO assessments (source, image_path,
-                                disease_problem, disease_confidence, disease_is_healthy, disease_cultural_biological, disease_chemical_direct,
-                                pest_problem, pest_confidence, pest_is_healthy, pest_cultural_biological, pest_chemical_direct,
-                                gate_confidence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (source, image_path,
-          disease_result["problem"], disease_result["confidence"], int(disease_result["is_healthy"]),
-          disease_result["cultural_biological"], disease_result["chemical_direct"],
-          pest_result["problem"], pest_result["confidence"], int(pest_result["is_healthy"]),
-          pest_result["cultural_biological"], pest_result["chemical_direct"],
-          gate_confidence))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO assessments (source, image_path,
+                                    disease_problem, disease_confidence, disease_is_healthy, disease_cultural_biological, disease_chemical_direct,
+                                    pest_problem, pest_confidence, pest_is_healthy, pest_cultural_biological, pest_chemical_direct,
+                                    gate_confidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (source, image_path,
+              disease_result["problem"], disease_result["confidence"], int(disease_result["is_healthy"]),
+              disease_result["cultural_biological"], disease_result["chemical_direct"],
+              pest_result["problem"], pest_result["confidence"], int(pest_result["is_healthy"]),
+              pest_result["cultural_biological"], pest_result["chemical_direct"],
+              gate_confidence))
+        conn.commit()
+        row_id = cursor.lastrowid
+        conn.close()
+        logger.info("Logged assessment id=%s (source=%s, image=%s)", row_id, source, image_path)
+    except Exception as e:
+        logger.error("Failed to write assessment to DB: %s", e)
+        logger.error(traceback.format_exc())
+        raise
+
 
 def log_prediction(source, detection_type, result, image_path=None):
     """Legacy function for backward compatibility - now logs to old table."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO predictions (source, detection_type, problem, confidence, cultural_biological, chemical_direct, image_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (source, detection_type, result["problem"], result["confidence"],
-          result["cultural_biological"], result["chemical_direct"], image_path))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO predictions (source, detection_type, problem, confidence, cultural_biological, chemical_direct, image_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (source, detection_type, result["problem"], result["confidence"],
+              result["cultural_biological"], result["chemical_direct"], image_path))
+        conn.commit()
+        row_id = cursor.lastrowid
+        conn.close()
+        logger.info("Logged prediction id=%s (source=%s, type=%s, image=%s)", row_id, source, detection_type, image_path)
+    except Exception as e:
+        logger.error("Failed to write prediction to DB: %s", e)
+        logger.error(traceback.format_exc())
+        raise
 
 
 # Startup tasks
-init_db()
-load_categories()
-load_all_models()
+logger.info("=" * 70)
+logger.info("Starting maize detection app | PID=%s | LOG_LEVEL=%s", os.getpid(), LOG_LEVEL)
+logger.info("=" * 70)
+
+_startup_start = time.time()
+try:
+    init_db()
+    load_categories()
+    load_all_models()
+except Exception:
+    # If startup itself blows up, make absolutely sure it's visible before
+    # the process potentially exits/crash-loops — this is the case that's
+    # easiest to miss in a log stream because there's no request to anchor it.
+    logger.error("STARTUP FAILED")
+    logger.error(traceback.format_exc())
+    raise
+else:
+    logger.info("Startup sequence complete in %.2fs", time.time() - _startup_start)
 
 # =====================================================================
 # ROUTES
@@ -429,7 +611,7 @@ def index():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({
+    status = {
         "status": "online",
         "gate_model_loaded": sessions["gate"] is not None,
         "disease_model_loaded": sessions["disease"] is not None,
@@ -437,7 +619,9 @@ def health():
         "database": os.path.exists(DB_PATH),
         "pest_categories_count": len(PEST_CATEGORY_MAP),
         "disease_categories_count": len(DISEASE_CATEGORY_MAP),
-    })
+    }
+    logger.debug("/api/health check: %s", status)
+    return jsonify(status)
 
 
 @app.route("/api/categories", methods=["GET"])
@@ -460,25 +644,35 @@ def predict():
          - No  -> return early with a "no maize / healthy" style response.
          - Yes -> run disease model AND pest model, return both results.
     """
+    request_id = uuid.uuid4().hex[:8]
+    t0 = time.time()
+    logger.info("[%s] /predict start", request_id)
     try:
         image_path = None
 
         if "file" in request.files:
             file_bytes = request.files["file"].read()
             source = request.form.get("source", "Web Client")
+            logger.info("[%s] Received multipart upload: field='file', source='%s', bytes=%d",
+                        request_id, source, len(file_bytes) if file_bytes else 0)
             # Also save web client images
             image_path = save_image(file_bytes, "WebClient")
         else:
             file_bytes = request.data
             source = "ESP32"
+            logger.info("[%s] Received raw body upload: source='ESP32', bytes=%d",
+                        request_id, len(file_bytes) if file_bytes else 0)
             # Save ESP32 images
             image_path = save_image(file_bytes, "ESP32")
 
         if not file_bytes:
+            logger.warning("[%s] No image data received — rejecting with 400", request_id)
             return jsonify({"success": False, "error": "No image data received"}), 400
 
         # --- Step 1: gate check -------------------------------------------------
+        logger.info("[%s] Running gate model...", request_id)
         is_maize, gate_confidence = run_gate_model(file_bytes)
+        logger.info("[%s] Gate model done: is_maize=%s confidence=%.2f%%", request_id, is_maize, gate_confidence)
 
         if not is_maize:
             not_maize_result = {
@@ -489,6 +683,7 @@ def predict():
                 "chemical_direct": "No action needed — no maize plant detected in image.",
             }
             log_prediction(source, "gate_reject", not_maize_result, image_path)
+            logger.info("[%s] /predict done (gate rejected) in %.1fms", request_id, (time.time() - t0) * 1000)
             return jsonify({
                 "success": True,
                 "source": source,
@@ -499,12 +694,14 @@ def predict():
             })
 
         # --- Step 2: maize detected -> run disease model + pest model ----------
+        logger.info("[%s] Maize confirmed — running disease model...", request_id)
         disease_result = run_classifier(
             "disease", file_bytes,
             class_name_lookup=DISEASE_CLASS_NAMES,
             category_map=DISEASE_CATEGORY_MAP,
             preprocess_fn=preprocess_mobilenet,
         )
+        logger.info("[%s] Running pest model...", request_id)
         pest_result = run_classifier(
             "pest", file_bytes,
             class_name_lookup=None,
@@ -514,6 +711,12 @@ def predict():
 
         # Log combined assessment
         log_assessment(source, disease_result, pest_result, image_path, gate_confidence)
+        logger.info(
+            "[%s] /predict done in %.1fms | disease='%s' (%.1f%%) | pest='%s' (%.1f%%)",
+            request_id, (time.time() - t0) * 1000,
+            disease_result["problem"], disease_result["confidence"],
+            pest_result["problem"], pest_result["confidence"],
+        )
 
         detected_faults = []
         for kind, result in (("disease", disease_result), ("pest", pest_result)):
@@ -554,23 +757,33 @@ def predict():
             "detected_faults": detected_faults,
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error("[%s] /predict FAILED after %.1fms: %s", request_id, (time.time() - t0) * 1000, e)
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e), "request_id": request_id}), 500
 
 
 @app.route("/api/latest", methods=["GET"])
 def get_latest():
     """Fetches the latest reading from DB"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, timestamp, source, detection_type, problem, confidence, "
-        "cultural_biological, chemical_direct, image_path FROM predictions ORDER BY id DESC LIMIT 1"
-    )
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, timestamp, source, detection_type, problem, confidence, "
+            "cultural_biological, chemical_direct, image_path FROM predictions ORDER BY id DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        conn.close()
+    except Exception as e:
+        logger.error("Failed to query /api/latest: %s", e)
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)}), 500
 
     if not row:
+        logger.info("/api/latest: no records found in predictions table")
         return jsonify({"success": False, "message": "No database records found"}), 404
+
+    logger.info("/api/latest: returning record id=%s", row[0])
 
     return jsonify({
         "success": True,
@@ -591,20 +804,27 @@ def get_latest():
 @app.route("/api/history", methods=["GET"])
 def get_history():
     """Returns historical logs with combined disease + pest data per image"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT id, timestamp, source, image_path,
-               disease_problem, disease_confidence, disease_is_healthy,
-               disease_cultural_biological, disease_chemical_direct,
-               pest_problem, pest_confidence, pest_is_healthy,
-               pest_cultural_biological, pest_chemical_direct,
-               gate_confidence
-        FROM assessments
-        ORDER BY id DESC LIMIT 20
-    ''')
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, timestamp, source, image_path,
+                   disease_problem, disease_confidence, disease_is_healthy,
+                   disease_cultural_biological, disease_chemical_direct,
+                   pest_problem, pest_confidence, pest_is_healthy,
+                   pest_cultural_biological, pest_chemical_direct,
+                   gate_confidence
+            FROM assessments
+            ORDER BY id DESC LIMIT 20
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        logger.error("Failed to query /api/history: %s", e)
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    logger.info("/api/history: returning %d record(s)", len(rows))
 
     history = []
     for r in rows:
@@ -634,4 +854,17 @@ def get_history():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # ========== FIX: bind to Render's assigned PORT, not a hardcoded one ==========
+    # Render's proxy routes external traffic to whatever port it tells your
+    # process to listen on via the $PORT env var (it is NOT guaranteed to be
+    # 5000). Hardcoding 5000 means Render's health checks and all incoming
+    # requests — from the browser AND the ESP32 — hit a port nothing is
+    # listening on, which surfaces as "connection refused."
+    #
+    # debug=True is also switched off here: it's fine locally, but on a
+    # production host it enables the interactive debugger/reloader, which
+    # you don't want exposed, and the reloader can cause the process to
+    # restart mid-request in ways that look like dropped connections.
+    port = int(os.environ.get("PORT", 5000))
+    logger.info("Binding Flask server to 0.0.0.0:%d (PORT env=%s)", port, os.environ.get("PORT"))
+    app.run(host="0.0.0.0", port=port, debug=False)
