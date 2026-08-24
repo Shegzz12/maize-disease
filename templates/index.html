@@ -38,6 +38,14 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in { animation: fadeIn 0.35s ease-out forwards; }
+        
+        .history-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-earth-50 text-slate-800 grain">
@@ -236,6 +244,16 @@
                         </div>
                     </div>
 
+                    <!-- Captured image display -->
+                    <div id="capturedImageSection" class="hidden rounded-2xl border border-earth-100 bg-white shadow-sm">
+                        <div class="border-b border-earth-100 px-6 py-4">
+                            <h3 class="text-base font-semibold text-earth-800">Captured Image</h3>
+                        </div>
+                        <div class="p-6">
+                            <img id="capturedImage" class="max-h-96 w-full rounded-xl border border-slate-200 object-contain shadow-sm" alt="Captured analysis image">
+                        </div>
+                    </div>
+
                     <!-- Parallel disease + pest result cards -->
                     <div>
                         <h3 class="mb-4 text-base font-semibold text-earth-800">Diagnosis &amp; recommended solutions</h3>
@@ -250,7 +268,7 @@
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-earth-100 pb-4">
                 <div>
                     <h3 class="text-lg font-semibold text-earth-800">Historic Assessments Log</h3>
-                    <p class="text-xs text-slate-500">Recent diagnosis records, refreshed automatically</p>
+                    <p class="text-xs text-slate-500">Recent diagnosis records with captured images, refreshed automatically</p>
                 </div>
                 <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <span class="relative flex h-2 w-2">
@@ -307,6 +325,8 @@
             historyFeed: $('historyFeed'),
             historyEmptyState: $('historyEmptyState'),
             streamStatusText: $('streamStatusText'),
+            capturedImageSection: $('capturedImageSection'),
+            capturedImage: $('capturedImage'),
         };
 
         let selectedFile = null;
@@ -409,6 +429,8 @@
             els.previewWrap.classList.add('hidden');
             els.analyzeBtn.disabled = true;
             els.diagnosisGrid.innerHTML = '';
+            els.capturedImageSection.classList.add('hidden');
+            els.capturedImage.src = '';
         }
 
         function wireFile(file) {
@@ -520,6 +542,12 @@
             } else {
                 els.noMaizeConf.textContent = '';
             }
+            
+            // Show captured image even for no maize detection
+            if (data.image_path) {
+                els.capturedImageSection.classList.remove('hidden');
+                els.capturedImage.src = data.image_path;
+            }
         }
 
         function renderResults(data) {
@@ -532,6 +560,12 @@
             }
 
             const { disease, pest } = extractDiagnoses(data);
+
+            // Show captured image if available
+            if (data.image_path) {
+                els.capturedImageSection.classList.remove('hidden');
+                els.capturedImage.src = data.image_path;
+            }
 
             if (typeof data.gate_confidence === 'number') {
                 els.gateConfBox.classList.remove('hidden');
@@ -566,12 +600,15 @@
             const id = item.id ?? '#';
             const type = item.detection_type || 'result';
             const source = item.source || '';
+            const imagePath = item.image_path || '';
+
+            const imageHtml = imagePath 
+                ? `<img src="${imagePath}" class="history-image" alt="Captured image" onerror="this.style.display='none'">`
+                : `<div class="history-image flex items-center justify-center bg-slate-100 text-slate-400 text-xs">No image</div>`;
 
             return `
                 <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 font-bold text-xs ring-1 ring-brand-200">
-                        ${conf}%
-                    </div>
+                    ${imageHtml}
                     <div>
                         <div class="flex items-center gap-2">
                             <h4 class="font-semibold text-slate-800 capitalize">${prob}</h4>
