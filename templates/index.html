@@ -45,6 +45,63 @@
             object-fit: cover;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .history-image:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .captured-image {
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .captured-image:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .lightbox.active {
+            display: flex;
+        }
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1001;
+            transition: color 0.2s ease;
+        }
+        .lightbox-close:hover {
+            color: #22c55e;
+        }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
     </style>
 </head>
@@ -250,7 +307,7 @@
                             <h3 class="text-base font-semibold text-earth-800">Captured Image</h3>
                         </div>
                         <div class="p-6">
-                            <img id="capturedImage" class="max-h-96 w-full rounded-xl border border-slate-200 object-contain shadow-sm" alt="Captured analysis image">
+                            <img id="capturedImage" class="captured-image max-h-96 w-full rounded-xl border border-slate-200 object-contain shadow-sm" alt="Captured analysis image">
                         </div>
                     </div>
 
@@ -268,7 +325,7 @@
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-earth-100 pb-4">
                 <div>
                     <h3 class="text-lg font-semibold text-earth-800">Historic Assessments Log</h3>
-                    <p class="text-xs text-slate-500">Recent diagnosis records with captured images, refreshed automatically</p>
+                    <p class="text-xs text-slate-500">Recent diagnosis records with captured images and treatment recommendations, refreshed automatically</p>
                 </div>
                 <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <span class="relative flex h-2 w-2">
@@ -292,6 +349,12 @@
             Maize Infection Intelligence &mdash; AI classification mapped to IPM treatment recommendations
         </div>
     </footer>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="lightbox">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightboxImage" class="lightbox-content" alt="Enlarged view">
+    </div>
 
     <script>
         const $ = (id) => document.getElementById(id);
@@ -327,6 +390,9 @@
             streamStatusText: $('streamStatusText'),
             capturedImageSection: $('capturedImageSection'),
             capturedImage: $('capturedImage'),
+            lightbox: $('lightbox'),
+            lightboxImage: $('lightboxImage'),
+            lightboxClose: document.querySelector('.lightbox-close'),
         };
 
         let selectedFile = null;
@@ -547,6 +613,7 @@
             if (data.image_path) {
                 els.capturedImageSection.classList.remove('hidden');
                 els.capturedImage.src = data.image_path;
+                els.capturedImage.onclick = () => openLightbox(data.image_path);
             }
         }
 
@@ -565,6 +632,7 @@
             if (data.image_path) {
                 els.capturedImageSection.classList.remove('hidden');
                 els.capturedImage.src = data.image_path;
+                els.capturedImage.onclick = () => openLightbox(data.image_path);
             }
 
             if (typeof data.gate_confidence === 'number') {
@@ -601,20 +669,41 @@
             const type = item.detection_type || 'result';
             const source = item.source || '';
             const imagePath = item.image_path || '';
+            const cultural = item.cultural_biological || 'No recommendation available';
+            const chemical = item.chemical_direct || 'No recommendation available';
 
             const imageHtml = imagePath 
-                ? `<img src="${imagePath}" class="history-image" alt="Captured image" onerror="this.style.display='none'">`
+                ? `<img src="${imagePath}" class="history-image" alt="Captured image" onclick="openLightbox('${imagePath}')" onerror="this.style.display='none'">`
                 : `<div class="history-image flex items-center justify-center bg-slate-100 text-slate-400 text-xs">No image</div>`;
 
             return `
-                <div class="flex items-center gap-3">
+                <div class="flex items-start gap-3">
                     ${imageHtml}
-                    <div>
+                    <div class="flex-1">
                         <div class="flex items-center gap-2">
                             <h4 class="font-semibold text-slate-800 capitalize">${prob}</h4>
                             <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500 capitalize">${type}</span>
                         </div>
                         <p class="text-xs text-slate-500">#${id} · ${timestamp}</p>
+                        
+                        <div class="mt-2 space-y-1">
+                            <div class="flex items-start gap-2">
+                                <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-50 text-emerald-600">
+                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                                    </svg>
+                                </div>
+                                <p class="text-xs text-slate-600 line-clamp-2">${cultural.substring(0, 100)}${cultural.length > 100 ? '...' : ''}</p>
+                            </div>
+                            <div class="flex items-start gap-2">
+                                <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-600">
+                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/>
+                                    </svg>
+                                </div>
+                                <p class="text-xs text-slate-600 line-clamp-2">${chemical.substring(0, 100)}${chemical.length > 100 ? '...' : ''}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="text-xs text-slate-500">${source}</div>`;
@@ -652,6 +741,36 @@
                 els.streamStatusText.textContent = 'Feed unavailable';
             }
         }
+
+        // Lightbox functions
+        function openLightbox(imageSrc) {
+            if (!imageSrc) return;
+            els.lightboxImage.src = imageSrc;
+            els.lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling
+        }
+
+        function closeLightbox() {
+            els.lightbox.classList.remove('active');
+            els.lightboxImage.src = '';
+            document.body.style.overflow = ''; // Re-enable scrolling
+        }
+
+        // Make openLightbox available globally for onclick handlers
+        window.openLightbox = openLightbox;
+
+        // Lightbox event listeners
+        els.lightboxClose.addEventListener('click', closeLightbox);
+        els.lightbox.addEventListener('click', (e) => {
+            if (e.target === els.lightbox) {
+                closeLightbox();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && els.lightbox.classList.contains('active')) {
+                closeLightbox();
+            }
+        });
 
         // Events
         els.dropZone.addEventListener('click', () => els.fileInput.click());
