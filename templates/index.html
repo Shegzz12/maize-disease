@@ -325,7 +325,7 @@
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-earth-100 pb-4">
                 <div>
                     <h3 class="text-lg font-semibold text-earth-800">Historic Assessments Log</h3>
-                    <p class="text-xs text-slate-500">Recent diagnosis records with captured images and treatment recommendations, refreshed automatically</p>
+                    <p class="text-xs text-slate-500">Recent diagnosis records showing disease + pest results per image with treatment recommendations</p>
                 </div>
                 <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <span class="relative flex h-2 w-2">
@@ -662,46 +662,75 @@
 
         // ---- History (plain GET /api/history, polled) ------------------------
         function historyItemMarkup(item) {
-            const prob = item.problem || 'Unspecified diagnostic';
-            const conf = Number(item.confidence || 0).toFixed(1);
             const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
             const id = item.id ?? '#';
-            const type = item.detection_type || 'result';
             const source = item.source || '';
             const imagePath = item.image_path || '';
-            const cultural = item.cultural_biological || 'No recommendation available';
-            const chemical = item.chemical_direct || 'No recommendation available';
+            
+            const disease = item.disease || {};
+            const pest = item.pest || {};
+            
+            const diseaseProb = disease.problem || 'No disease detected';
+            const diseaseConf = Number(disease.confidence || 0).toFixed(1);
+            const diseaseCultural = disease.cultural_biological || 'No recommendation available';
+            const diseaseChemical = disease.chemical_direct || 'No recommendation available';
+            const diseaseHealthy = !!disease.is_healthy;
+            
+            const pestProb = pest.problem || 'No pest detected';
+            const pestConf = Number(pest.confidence || 0).toFixed(1);
+            const pestCultural = pest.cultural_biological || 'No recommendation available';
+            const pestChemical = pest.chemical_direct || 'No recommendation available';
+            const pestHealthy = !!pest.is_healthy;
 
             const imageHtml = imagePath 
                 ? `<img src="${imagePath}" class="history-image" alt="Captured image" onclick="openLightbox('${imagePath}')" onerror="this.style.display='none'">`
                 : `<div class="history-image flex items-center justify-center bg-slate-100 text-slate-400 text-xs">No image</div>`;
 
+            const diseaseBadge = diseaseHealthy 
+                ? '<span class="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Healthy</span>'
+                : '<span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Issue</span>';
+            
+            const pestBadge = pestHealthy 
+                ? '<span class="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Healthy</span>'
+                : '<span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Issue</span>';
+
             return `
                 <div class="flex items-start gap-3">
                     ${imageHtml}
                     <div class="flex-1">
-                        <div class="flex items-center gap-2">
-                            <h4 class="font-semibold text-slate-800 capitalize">${prob}</h4>
-                            <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500 capitalize">${type}</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 class="font-semibold text-slate-800 capitalize">${diseaseProb}</h4>
+                            ${diseaseBadge}
+                            <span class="text-xs text-slate-500">${diseaseConf}%</span>
+                            <span class="text-slate-300">|</span>
+                            <h4 class="font-semibold text-slate-800 capitalize">${pestProb}</h4>
+                            ${pestBadge}
+                            <span class="text-xs text-slate-500">${pestConf}%</span>
                         </div>
                         <p class="text-xs text-slate-500">#${id} · ${timestamp}</p>
                         
-                        <div class="mt-2 space-y-1">
-                            <div class="flex items-start gap-2">
-                                <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-50 text-emerald-600">
-                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
-                                    </svg>
+                        <div class="mt-2 space-y-2">
+                            <div class="rounded-lg bg-emerald-50 p-2">
+                                <div class="flex items-center gap-1 mb-1">
+                                    <div class="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-emerald-100 text-emerald-600">
+                                        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                                        </svg>
+                                    </div>
+                                    <span class="text-xs font-semibold text-emerald-700">Cultural/Biological</span>
                                 </div>
-                                <p class="text-xs text-slate-600 line-clamp-2">${cultural.substring(0, 100)}${cultural.length > 100 ? '...' : ''}</p>
+                                <p class="text-xs text-slate-600 line-clamp-2">${diseaseCultural.substring(0, 120)}${diseaseCultural.length > 120 ? '...' : ''}</p>
                             </div>
-                            <div class="flex items-start gap-2">
-                                <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-600">
-                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/>
-                                    </svg>
+                            <div class="rounded-lg bg-blue-50 p-2">
+                                <div class="flex items-center gap-1 mb-1">
+                                    <div class="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-blue-100 text-blue-600">
+                                        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/>
+                                        </svg>
+                                    </div>
+                                    <span class="text-xs font-semibold text-blue-700">Chemical/Direct</span>
                                 </div>
-                                <p class="text-xs text-slate-600 line-clamp-2">${chemical.substring(0, 100)}${chemical.length > 100 ? '...' : ''}</p>
+                                <p class="text-xs text-slate-600 line-clamp-2">${diseaseChemical.substring(0, 120)}${diseaseChemical.length > 120 ? '...' : ''}</p>
                             </div>
                         </div>
                     </div>
