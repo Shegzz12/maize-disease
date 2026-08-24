@@ -75,7 +75,24 @@ DISEASE_CATEGORY_MAP = {}   # keyed by str(class_id) -> {"problem", "cultural_bi
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
+    # ========== FIX: create predictions table unconditionally ==========
+    # This table is written to by log_prediction() (gate reject case) and
+    # read by /api/latest. It must always exist, even on a fresh DB.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            source TEXT,
+            detection_type TEXT,
+            problem TEXT,
+            confidence REAL,
+            cultural_biological TEXT,
+            chemical_direct TEXT,
+            image_path TEXT
+        )
+    ''')
+
     # Create new table for combined disease + pest results per image
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS assessments (
@@ -96,18 +113,18 @@ def init_db():
             gate_confidence REAL
         )
     ''')
-    
-    # Migrate from old predictions table if it exists
+
+    # Migrate from old predictions table if it exists (and has data)
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'")
     old_table_exists = cursor.fetchone() is not None
-    
+
     if old_table_exists:
         # Check if we've already migrated
         cursor.execute("SELECT COUNT(*) FROM assessments")
         if cursor.fetchone()[0] == 0:
             print("Migrating data from old predictions table to new assessments table...")
             cursor.execute('''
-                SELECT timestamp, source, image_path, 
+                SELECT timestamp, source, image_path,
                        MAX(CASE WHEN detection_type = 'disease' THEN problem END) as disease_problem,
                        MAX(CASE WHEN detection_type = 'disease' THEN confidence END) as disease_confidence,
                        MAX(CASE WHEN detection_type = 'disease' THEN cultural_biological END) as disease_cultural_biological,
@@ -116,23 +133,23 @@ def init_db():
                        MAX(CASE WHEN detection_type = 'pest' THEN confidence END) as pest_confidence,
                        MAX(CASE WHEN detection_type = 'pest' THEN cultural_biological END) as pest_cultural_biological,
                        MAX(CASE WHEN detection_type = 'pest' THEN chemical_direct END) as pest_chemical_direct
-                FROM predictions 
+                FROM predictions
                 WHERE image_path IS NOT NULL AND image_path != ''
                 GROUP BY image_path, timestamp, source
             ''')
             old_data = cursor.fetchall()
-            
+
             for row in old_data:
                 cursor.execute('''
-                    INSERT INTO assessments (timestamp, source, image_path, 
+                    INSERT INTO assessments (timestamp, source, image_path,
                                             disease_problem, disease_confidence, disease_cultural_biological, disease_chemical_direct,
                                             pest_problem, pest_confidence, pest_cultural_biological, pest_chemical_direct)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', row)
-            
+
             conn.commit()
             print(f"Migrated {len(old_data)} records to new assessments table")
-    
+
     conn.close()
 
 
@@ -282,15 +299,15 @@ def save_image(image_bytes, source="ESP32"):
     """Save image bytes to static/images directory and return the relative path."""
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
+
     # Generate unique filename
     filename = f"{source}_{uuid.uuid4().hex[:8]}_{int(time.time())}.jpg"
     filepath = os.path.join(UPLOAD_FOLDER, filename)
-    
+
     # Save the image
     with open(filepath, 'wb') as f:
         f.write(image_bytes)
-    
+
     # Return relative path for serving via Flask
     return f"/static/images/{filename}"
 
@@ -368,7 +385,7 @@ def log_assessment(source, disease_result, pest_result, image_path=None, gate_co
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO assessments (source, image_path, 
+        INSERT INTO assessments (source, image_path,
                                 disease_problem, disease_confidence, disease_is_healthy, disease_cultural_biological, disease_chemical_direct,
                                 pest_problem, pest_confidence, pest_is_healthy, pest_cultural_biological, pest_chemical_direct,
                                 gate_confidence)
@@ -445,7 +462,7 @@ def predict():
     """
     try:
         image_path = None
-        
+
         if "file" in request.files:
             file_bytes = request.files["file"].read()
             source = request.form.get("source", "Web Client")
@@ -578,12 +595,12 @@ def get_history():
     cursor = conn.cursor()
     cursor.execute('''
         SELECT id, timestamp, source, image_path,
-               disease_problem, disease_confidence, disease_is_healthy, 
+               disease_problem, disease_confidence, disease_is_healthy,
                disease_cultural_biological, disease_chemical_direct,
                pest_problem, pest_confidence, pest_is_healthy,
                pest_cultural_biological, pest_chemical_direct,
                gate_confidence
-        FROM assessments 
+        FROM assessments
         ORDER BY id DESC LIMIT 20
     ''')
     rows = cursor.fetchall()
@@ -612,7 +629,7 @@ def get_history():
             },
             "gate_confidence": r[14]
         })
-    
+
     return jsonify({"success": True, "history": history})
 
 
