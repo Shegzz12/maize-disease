@@ -75,27 +75,64 @@ DISEASE_CATEGORY_MAP = {}   # keyed by str(class_id) -> {"problem", "cultural_bi
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # Create new table for combined disease + pest results per image
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS predictions (
+        CREATE TABLE IF NOT EXISTS assessments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             source TEXT,
-            detection_type TEXT,
-            problem TEXT,
-            confidence REAL,
-            cultural_biological TEXT,
-            chemical_direct TEXT,
-            image_path TEXT
+            image_path TEXT,
+            disease_problem TEXT,
+            disease_confidence REAL,
+            disease_is_healthy INTEGER,
+            disease_cultural_biological TEXT,
+            disease_chemical_direct TEXT,
+            pest_problem TEXT,
+            pest_confidence REAL,
+            pest_is_healthy INTEGER,
+            pest_cultural_biological TEXT,
+            pest_chemical_direct TEXT,
+            gate_confidence REAL
         )
     ''')
-    # Migrate older DBs that predate the detection_type and image_path columns
-    cursor.execute("PRAGMA table_info(predictions)")
-    existing_cols = {row[1] for row in cursor.fetchall()}
-    if "detection_type" not in existing_cols:
-        cursor.execute("ALTER TABLE predictions ADD COLUMN detection_type TEXT")
-    if "image_path" not in existing_cols:
-        cursor.execute("ALTER TABLE predictions ADD COLUMN image_path TEXT")
-    conn.commit()
+    
+    # Migrate from old predictions table if it exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='predictions'")
+    old_table_exists = cursor.fetchone() is not None
+    
+    if old_table_exists:
+        # Check if we've already migrated
+        cursor.execute("SELECT COUNT(*) FROM assessments")
+        if cursor.fetchone()[0] == 0:
+            print("Migrating data from old predictions table to new assessments table...")
+            cursor.execute('''
+                SELECT timestamp, source, image_path, 
+                       MAX(CASE WHEN detection_type = 'disease' THEN problem END) as disease_problem,
+                       MAX(CASE WHEN detection_type = 'disease' THEN confidence END) as disease_confidence,
+                       MAX(CASE WHEN detection_type = 'disease' THEN cultural_biological END) as disease_cultural_biological,
+                       MAX(CASE WHEN detection_type = 'disease' THEN chemical_direct END) as disease_chemical_direct,
+                       MAX(CASE WHEN detection_type = 'pest' THEN problem END) as pest_problem,
+                       MAX(CASE WHEN detection_type = 'pest' THEN confidence END) as pest_confidence,
+                       MAX(CASE WHEN detection_type = 'pest' THEN cultural_biological END) as pest_cultural_biological,
+                       MAX(CASE WHEN detection_type = 'pest' THEN chemical_direct END) as pest_chemical_direct
+                FROM predictions 
+                WHERE image_path IS NOT NULL AND image_path != ''
+                GROUP BY image_path, timestamp, source
+            ''')
+            old_data = cursor.fetchall()
+            
+            for row in old_data:
+                cursor.execute('''
+                    INSERT INTO assessments (timestamp, source, image_path, 
+                                            disease_problem, disease_confidence, disease_cultural_biological, disease_chemical_direct,
+                                            pest_problem, pest_confidence, pest_cultural_biological, pest_chemical_direct)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', row)
+            
+            conn.commit()
+            print(f"Migrated {len(old_data)} records to new assessments table")
+    
     conn.close()
 
 
@@ -326,7 +363,27 @@ def run_classifier(model_key, image_bytes, class_name_lookup, category_map, prep
     }
 
 
+def log_assessment(source, disease_result, pest_result, image_path=None, gate_confidence=None):
+    """Log combined disease + pest assessment as a single record."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO assessments (source, image_path, 
+                                disease_problem, disease_confidence, disease_is_healthy, disease_cultural_biological, disease_chemical_direct,
+                                pest_problem, pest_confidence, pest_is_healthy, pest_cultural_biological, pest_chemical_direct,
+                                gate_confidence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (source, image_path,
+          disease_result["problem"], disease_result["confidence"], int(disease_result["is_healthy"]),
+          disease_result["cultural_biological"], disease_result["chemical_direct"],
+          pest_result["problem"], pest_result["confidence"], int(pest_result["is_healthy"]),
+          pest_result["cultural_biological"], pest_result["chemical_direct"],
+          gate_confidence))
+    conn.commit()
+    conn.close()
+
 def log_prediction(source, detection_type, result, image_path=None):
+    """Legacy function for backward compatibility - now logs to old table."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
@@ -438,8 +495,8 @@ def predict():
             preprocess_fn=preprocess_imagenet,
         )
 
-        log_prediction(source, "disease", disease_result, image_path)
-        log_prediction(source, "pest", pest_result, image_path)
+        # Log combined assessment
+        log_assessment(source, disease_result, pest_result, image_path, gate_confidence)
 
         detected_faults = []
         for kind, result in (("disease", disease_result), ("pest", pest_result)):
@@ -516,21 +573,46 @@ def get_latest():
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
-    """Returns historical logs with image paths"""
+    """Returns historical logs with combined disease + pest data per image"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, timestamp, source, detection_type, problem, confidence, image_path "
-        "FROM predictions ORDER BY id DESC LIMIT 20"
-    )
+    cursor.execute('''
+        SELECT id, timestamp, source, image_path,
+               disease_problem, disease_confidence, disease_is_healthy, 
+               disease_cultural_biological, disease_chemical_direct,
+               pest_problem, pest_confidence, pest_is_healthy,
+               pest_cultural_biological, pest_chemical_direct,
+               gate_confidence
+        FROM assessments 
+        ORDER BY id DESC LIMIT 20
+    ''')
     rows = cursor.fetchall()
     conn.close()
 
-    history = [
-        {"id": r[0], "timestamp": r[1], "source": r[2], "detection_type": r[3],
-         "problem": r[4], "confidence": r[5], "image_path": r[6]}
-        for r in rows
-    ]
+    history = []
+    for r in rows:
+        history.append({
+            "id": r[0],
+            "timestamp": r[1],
+            "source": r[2],
+            "image_path": r[3],
+            "disease": {
+                "problem": r[4],
+                "confidence": r[5],
+                "is_healthy": bool(r[6]),
+                "cultural_biological": r[7],
+                "chemical_direct": r[8]
+            },
+            "pest": {
+                "problem": r[9],
+                "confidence": r[10],
+                "is_healthy": bool(r[11]),
+                "cultural_biological": r[12],
+                "chemical_direct": r[13]
+            },
+            "gate_confidence": r[14]
+        })
+    
     return jsonify({"success": True, "history": history})
 
 
