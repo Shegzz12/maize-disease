@@ -429,6 +429,31 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
+def boost_disease_confidence(raw_confidence_pct):
+    """Cosmetic confidence boost applied ONLY to the disease model's
+    displayed confidence (per explicit request) — NOT the model's actual
+    certainty. Never returns below ~55%, and leaves anything already >=70%
+    untouched. Piecewise-linear through these anchor points:
+        raw:      0    10    20    30    40    70
+        shown:   55    60    60    80    85    70   (unchanged for raw>=70)
+    """
+    anchors = [
+        (0.0, 55.0),
+        (10.0, 60.0),
+        (20.0, 60.0),
+        (30.0, 80.0),
+        (40.0, 85.0),
+        (70.0, 70.0),
+    ]
+    if raw_confidence_pct >= 70.0:
+        return round(raw_confidence_pct, 2)
+    for (x0, y0), (x1, y1) in zip(anchors, anchors[1:]):
+        if x0 <= raw_confidence_pct <= x1:
+            frac = (raw_confidence_pct - x0) / (x1 - x0) if x1 > x0 else 0.0
+            return round(y0 + frac * (y1 - y0), 2)
+    return round(max(raw_confidence_pct, 55.0), 2)
+
+
 # =====================================================================
 # 5. IMAGE SAVING
 # =====================================================================
@@ -733,6 +758,12 @@ def predict():
             class_name_lookup=DISEASE_CLASS_NAMES,
             category_map=DISEASE_CATEGORY_MAP,
             preprocess_fn=preprocess_mobilenet,
+        )
+        _raw_disease_confidence = disease_result["confidence"]
+        disease_result["confidence"] = boost_disease_confidence(_raw_disease_confidence)
+        logger.info(
+            "[%s] Disease confidence boosted for display: raw=%.2f%% -> shown=%.2f%%",
+            request_id, _raw_disease_confidence, disease_result["confidence"],
         )
         logger.info("[%s] Running pest model...", request_id)
         pest_result = run_classifier(
