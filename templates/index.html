@@ -527,10 +527,10 @@
                 </div>`;
         }
 
-        // Renders one diagnosis card (disease OR pest) from the flat shape
-        // returned by /predict: { problem, confidence, is_healthy,
-        // cultural_biological, chemical_direct } (with an optional nested
-        // `solutions` object also supported for forward compatibility).
+        // Renders one diagnosis card (disease OR pest) from a normalized
+        // object shape: { problem, confidence, is_healthy, cultural_biological,
+        // chemical_direct, class_id }. Also tolerates the raw nested
+        // `solutions` shape returned by /predict for backward compatibility.
         function renderDiagnosisCard(title, kind, obj) {
             const card = document.createElement('article');
             const healthy = !!obj.is_healthy;
@@ -597,6 +597,63 @@
             };
         }
 
+        // Flattens either shape (the nested `solutions.*` shape returned by
+        // /predict, or the already-flat shape returned by /api/history) into
+        // one consistent object so downstream logic (including the ear-rot
+        // workaround below) never has to branch on where the data came from.
+        function normalizeDiagnosis(obj) {
+            if (!obj) return null;
+            return {
+                problem: obj.problem || 'Unknown',
+                confidence: Number(obj.confidence || 0),
+                is_healthy: !!obj.is_healthy,
+                cultural_biological: obj.solutions?.cultural_biological || obj.cultural_biological || 'No recommendation available.',
+                chemical_direct: obj.solutions?.chemical_direct || obj.chemical_direct || 'No recommendation available.',
+                class_id: (obj.class_id ?? null),
+            };
+        }
+
+        const EAR_ROT_LABEL = 'maize ear rot';
+
+        // --- Training-data workaround (no retrain) ---------------------------
+        // "Maize Ear Rot" is actually a disease, but it was mistakenly trained
+        // into the PEST model. Rather than retraining:
+        //   1. This only kicks in when the pest model's top result IS ear rot
+        //      — any other pest is returned completely untouched.
+        //   2. We compare the disease model's confidence (already boosted via
+        //      boost_disease_confidence on the server) against the pest
+        //      model's ear-rot confidence, and use whichever is HIGHER as the
+        //      confidence shown for "Maize Ear Rot" under the Pest card.
+        //   3. The Disease card is then forced to show "Healthy", since the
+        //      disease model was never trained on ear rot and its raw class
+        //      guess isn't meaningful once ear rot is the real finding.
+        function applyEarRotWorkaround(disease, pest) {
+            if (!pest || (pest.problem || '').trim().toLowerCase() !== EAR_ROT_LABEL) {
+                return { disease, pest };
+            }
+
+            const diseaseConfidence = disease ? Number(disease.confidence || 0) : 0;
+            const pestConfidence = Number(pest.confidence || 0);
+            const winningConfidence = Math.max(diseaseConfidence, pestConfidence);
+
+            const fixedPest = {
+                ...pest,
+                confidence: winningConfidence,
+                is_healthy: false,
+            };
+
+            const fixedDisease = {
+                problem: 'Healthy',
+                confidence: disease ? disease.confidence : winningConfidence,
+                is_healthy: true,
+                cultural_biological: 'Plant appears healthy — continue routine monitoring and good agronomic practice.',
+                chemical_direct: 'No chemical treatment needed.',
+                class_id: disease ? disease.class_id : null,
+            };
+
+            return { disease: fixedDisease, pest: fixedPest };
+        }
+
         function showNoMaize(data) {
             els.emptyState.classList.add('hidden');
             els.resultSection.classList.add('hidden');
@@ -626,7 +683,10 @@
                 return;
             }
 
-            const { disease, pest } = extractDiagnoses(data);
+            let { disease, pest } = extractDiagnoses(data);
+            disease = normalizeDiagnosis(disease);
+            pest = normalizeDiagnosis(pest);
+            ({ disease, pest } = applyEarRotWorkaround(disease, pest));
 
             // Show captured image if available
             if (data.image_path) {
@@ -666,10 +726,11 @@
             const id = item.id ?? '#';
             const source = item.source || '';
             const imagePath = item.image_path || '';
-            
-            const disease = item.disease || {};
-            const pest = item.pest || {};
-            
+
+            let disease = normalizeDiagnosis(item.disease) || {};
+            let pest = normalizeDiagnosis(item.pest) || {};
+            ({ disease, pest } = applyEarRotWorkaround(disease, pest));
+
             const diseaseProb = disease.problem || 'No disease detected';
             const diseaseConf = Number(disease.confidence || 0).toFixed(1);
             const diseaseCultural = disease.cultural_biological || 'No recommendation available';
