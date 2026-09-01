@@ -103,18 +103,20 @@ HEALTHY_LABEL = "healthy"
 DISEASE_CLASS_NAMES = ["HEALTHY", "leaf blight", "leaf spot", "streak virus"]
 
 # --- Gate model config ---------------------------------------------------
-# ASSUMPTION (please verify against how you trained gate_model.onnx):
-#   - 2 output logits/probabilities, softmax over ["maize", "not_maize"]
-#   - index 0 = "maize", index 1 = "not_maize"
-#   - same preprocessing family as the disease model (MobileNetV2-style,
-#     scaled to [-1, 1]) since no training script was provided for it.
-# If your gate model actually outputs a single sigmoid value instead of
-# two softmax classes, or uses ImageNet mean/std normalization, adjust
-# GATE_OUTPUT_MODE and preprocess_mobilenet/preprocess_imagenet usage below.
+# UPDATED: gate model is now a YOLOv8n-cls (Ultralytics) classifier exported
+# to ONNX. Verified directly from the exported ONNX graph metadata/nodes:
+#   - metadata "names" = {0: 'maize', 1: 'out_of_bounds'}  -> maize is index 0
+#   - the graph's FINAL node is a Softmax op, so output0 is already
+#     probabilities (NOT raw logits) — do not re-apply softmax on it.
+#   - input "images": shape [1, 3, 224, 224] (NCHW), float32
+#   - output "output0": shape [1, 2]
+#   - Ultralytics classify preprocessing: RGB, resized to imgsz, scaled to
+#     [0, 1] (divide by 255) — NO ImageNet mean/std, NO MobileNet [-1,1]
+#     scaling. This is different from the disease/pest models below.
 GATE_MAIZE_INDEX = 0
-GATE_OUTPUT_MODE = "softmax_2class"  # or "sigmoid_1class"
-GATE_PREPROCESS = "mobilenet"        # "mobilenet" ([-1,1]) or "imagenet" (mean/std)
-GATE_CONFIDENCE_THRESHOLD = 50.0     # % confidence required to trust "maize" verdict
+GATE_OUTPUT_MODE = "presoftmax_2class"  # output0 is already softmax'd by the graph
+GATE_PREPROCESS = "yolo_cls"            # RGB, resized, scaled to [0,1], no mean/std
+GATE_CONFIDENCE_THRESHOLD = 50.0        # % confidence required to trust "maize" verdict
 
 # --- Pest model normalization (unchanged from original deployment) ------
 # Same normalization used during training for best.onnx (ImageNet mean/std)
@@ -382,8 +384,7 @@ def preprocess_imagenet(image_bytes):
 
 def preprocess_mobilenet(image_bytes):
     """MobileNetV2 `preprocess_input`-equivalent normalization: scales to
-    [-1, 1]. Used by the disease model (and, by default, the gate model —
-    see GATE_PREPROCESS note above). Matches keras.applications.mobilenet_v2
+    [-1, 1]. Used by the disease model. Matches keras.applications.mobilenet_v2
     .preprocess_input, which does: x / 127.5 - 1, channel order RGB.
     Returns an unbatched HWC array; `format_for_model` handles the final
     layout and batch dimension per the target model."""
@@ -391,14 +392,26 @@ def preprocess_mobilenet(image_bytes):
     return (img_data / 127.5) - 1.0
 
 
+def preprocess_yolo_cls(image_bytes):
+    """Ultralytics classification (YOLOv8n-cls) preprocessing — used by the
+    gate model. RGB, resized, scaled to [0, 1]. NO ImageNet mean/std and NO
+    MobileNet [-1, 1] scaling — those are different normalizations used by
+    the pest/disease models respectively and would be wrong here.
+    Returns an unbatched HWC array; `format_for_model` handles the final
+    layout (this model is NCHW) and batch dimension."""
+    img_data = _load_resized_rgb(image_bytes)
+    return img_data / 255.0
+
+
 def format_for_model(sess, hwc_image):
     """Adapt a normalized HWC (height, width, channels) image to the exact
     input layout the ONNX model expects, then add the batch dimension.
 
     Models exported from Keras/TF are channels-last (N, H, W, C) while models
-    exported from PyTorch/torchvision are channels-first (N, C, H, W). We read
-    the target layout from the model's own input signature so each model gets
-    the tensor it expects, instead of hard-coding one convention.
+    exported from PyTorch/torchvision (including Ultralytics YOLO) are
+    channels-first (N, C, H, W). We read the target layout from the model's
+    own input signature so each model gets the tensor it expects, instead of
+    hard-coding one convention.
     """
     shape = sess.get_inputs()[0].shape  # e.g. [1, 3, 224, 224] or [N, 224, 224, 3]
     # Channels-last when the last static dim is the 3 colour channels.
@@ -447,14 +460,23 @@ def save_image(image_bytes, source="ESP32"):
 # 6. INFERENCE HELPERS
 # =====================================================================
 def run_gate_model(image_bytes):
-    """Runs the 'is maize detected?' gate model.
-    Returns (is_maize: bool, confidence_pct: float)."""
+    """Runs the 'is maize detected?' gate model (YOLOv8n-cls, exported ONNX).
+    Returns (is_maize: bool, confidence_pct: float).
+
+    NOTE on this model specifically (verified from the exported ONNX graph):
+      - class names: {0: 'maize', 1: 'out_of_bounds'} -> GATE_MAIZE_INDEX = 0
+      - the graph's final op is Softmax, so `raw` below is ALREADY a
+        probability distribution over the 2 classes — it must NOT be passed
+        through softmax() again (that would flatten/distort the confidence).
+      - preprocessing is Ultralytics-style: RGB, resized, scaled to [0, 1].
+    """
     sess = load_onnx_model("gate")
     input_name = sess.get_inputs()[0].name
     output_name = sess.get_outputs()[0].name
 
-    hwc = preprocess_mobilenet(image_bytes) if GATE_PREPROCESS == "mobilenet" \
-        else preprocess_imagenet(image_bytes)
+    hwc = preprocess_yolo_cls(image_bytes) if GATE_PREPROCESS == "yolo_cls" \
+        else (preprocess_mobilenet(image_bytes) if GATE_PREPROCESS == "mobilenet"
+              else preprocess_imagenet(image_bytes))
     tensor = format_for_model(sess, hwc)
 
     infer_start = time.time()
@@ -462,13 +484,24 @@ def run_gate_model(image_bytes):
     infer_ms = (time.time() - infer_start) * 1000
     logger.debug("Gate model raw output: %s (inference %.1fms)", raw, infer_ms)
 
+    if GATE_OUTPUT_MODE == "presoftmax_2class":
+        # Output already softmax'd by the ONNX graph itself — use as-is.
+        probs = raw
+        maize_prob = float(probs[GATE_MAIZE_INDEX]) * 100
+        is_maize = maize_prob >= GATE_CONFIDENCE_THRESHOLD
+        logger.info(
+            "Gate result (pre-softmaxed graph output): is_maize=%s confidence=%.2f%% (all probs=%s, threshold=%s%%)",
+            is_maize, maize_prob, np.round(probs, 4).tolist(), GATE_CONFIDENCE_THRESHOLD,
+        )
+        return is_maize, round(maize_prob, 2)
+
     if GATE_OUTPUT_MODE == "sigmoid_1class":
         maize_prob = float(sigmoid(raw)[0]) if hasattr(raw, "__len__") else float(sigmoid(raw))
         is_maize = maize_prob * 100 >= GATE_CONFIDENCE_THRESHOLD
         logger.info("Gate result (sigmoid mode): is_maize=%s confidence=%.2f%%", is_maize, maize_prob * 100)
         return is_maize, round(maize_prob * 100, 2)
 
-    # default: softmax_2class
+    # legacy default: softmax_2class (raw logits requiring softmax ourselves)
     probs = softmax(raw)
     maize_prob = float(probs[GATE_MAIZE_INDEX]) * 100
     is_maize = maize_prob >= GATE_CONFIDENCE_THRESHOLD
